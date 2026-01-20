@@ -11,6 +11,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@isomorphic-git/lightning-fs": "^4.6.2",
     "@monaco-editor/react": "^4.7.0",
     "@once-ui-system/core": "^1.5.14",
     "@tauri-apps/api": "^2",
