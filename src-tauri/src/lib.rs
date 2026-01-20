@@ -31,6 +31,7 @@ pub fn run() {
         // Initialize plugins
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init()) // <-- ADD THIS LINE
         // Register commands callable from JS/TS
         .invoke_handler(tauri::generate_handler![
             greet,

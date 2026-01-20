@@ -27,3 +27,4 @@ tauri = { version = "2.9", features = [] }
 # Official plugins (use latest patch versions)
 tauri-plugin-fs  = "^2"
 tauri-plugin-log = "^2"
+tauri-plugin-dialog = "2"
