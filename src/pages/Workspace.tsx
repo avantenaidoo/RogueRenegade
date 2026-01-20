@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useEditorStore } from "../store";
 import Editor from "../components/Editor";
 import FileExplorer from "../components/FileExplorer";
@@ -10,49 +10,78 @@ import "../App.css";
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
   const activeTab = tabs[activeTabIndex];
 
+  // Update Tailwind dark class when isDarkMode changes
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+      setTheme("vs-dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      setTheme("vs-light");
+    }
+  }, [isDarkMode]);
+
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
+    <div className="flex h-screen bg-white text-black dark:bg-black dark:text-white">
       <FileExplorer />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+
+      <div className="flex-1 flex flex-col">
         {/* Tab bar */}
-        <div style={{ display: "flex", borderBottom: "1px solid gray" }}>
+        <div className="flex border-b border-gray-300 dark:border-gray-700">
           {tabs.map((t, i) => (
             <div
               key={t.path}
-              style={{
-                padding: "5px 10px",
-                cursor: "pointer",
-                background: i === activeTabIndex ? "#ddd" : "#eee",
-              }}
+              className={`px-2 py-1 cursor-pointer ${
+                i === activeTabIndex
+                  ? "bg-gray-200 dark:bg-gray-800"
+                  : "bg-gray-100 dark:bg-gray-900"
+              }`}
               onClick={() => setActiveTab(i)}
             >
-              {t.path.split("/").pop()}
-              <button onClick={() => closeTab(i)}>x</button>
+              <span className="font-semibold dark:text-lime-400">
+                {t.path.split("/").pop()}
+              </span>
+              <button
+                className="ml-2 text-red-500 dark:text-red-400"
+                onClick={() => closeTab(i)}
+              >
+                x
+              </button>
             </div>
           ))}
         </div>
+
+        {/* Editor */}
         {activeTab && (
           <Editor
             value={activeTab.content}
-            onChange={val => {
-                if (val !== undefined) {
-                    updateTab(activeTabIndex, val);
-                }
-                }}
+            onChange={(val) => val !== undefined && updateTab(activeTabIndex, val)}
             theme={theme}
             path={activeTab.path}
           />
         )}
+
+        {/* Save Button */}
         <button
-          onClick={() => activeTab && saveFile(activeTab.path, activeTab.content)}
+          className="mt-2 px-4 py-2 bg-gray-200 dark:bg-gray-800 text-black dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-700"
+          onClick={() =>
+            activeTab && saveFile(activeTab.path, activeTab.content)
+          }
         >
           Save
         </button>
+
         <GitPanel />
-        <SettingsPanel theme={theme} setTheme={setTheme} />
+
+        {/* Settings Panel */}
+        <SettingsPanel
+          theme={theme}
+          setTheme={(newTheme) => setIsDarkMode(newTheme === "vs-dark")}
+        />
       </div>
     </div>
   );
