@@ -1,13 +1,13 @@
-import { readTextFile, writeTextFile } from "@tauri-apps/api/fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 // Read a file
 export async function readFile(path: string) {
   return await readTextFile(path);
 }
 
-// Write file
+// Write a file
 export async function saveFile(path: string, content: string) {
-  await writeTextFile({ path, contents: content });
+  await writeTextFile(path, content);
 }
 
 // Check if file exists
