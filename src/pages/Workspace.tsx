@@ -5,6 +5,7 @@ import FileExplorer from "../components/FileExplorer";
 import GitPanel from "../components/GitPanel";
 import SettingsPanel from "../components/SettingsPanel";
 import { saveFile } from "../utils/fs";
+import "../App.css";
 
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
