@@ -6,6 +6,8 @@ import GitPanel from "../components/GitPanel";
 import SettingsPanel from "../components/SettingsPanel";
 import { saveFile } from "../utils/fs";
 import "../App.css";
+import GitStatus from "../components/GitStatus";
+
 
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
@@ -119,7 +121,9 @@ export default function Workspace() {
         >
           Save
         </button>
-
+        
+        {/* --- Git Status Bar --- */}
+        <GitStatus />
         <GitPanel />
 
         {/* Settings Panel */}
