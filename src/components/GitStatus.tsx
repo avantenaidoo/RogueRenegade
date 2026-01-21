@@ -60,11 +60,11 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
 
       {/* 👈 Simple branch switcher modal placeholder */}
       {isBranchModalOpen && (
-        <div className="absolute top-10 left-10 p-4 bg-white border shadow-lg z-50">
+        <div className="absolute top-10 left-10 p-4 bg-muted text-default border shadow-lg z-50">
           <h4 className="font-bold mb-2">Switch Branch (Placeholder)</h4>
           <p>Here you can later list branches and allow switching.</p>
           <button
-            className="mt-2 px-2 py-1 bg-gray-200 hover:bg-gray-300"
+            className="mt-2 px-2 py-1 bg-default hover:bg-muted"
             onClick={() => setIsBranchModalOpen(false)}
           >
             Close
