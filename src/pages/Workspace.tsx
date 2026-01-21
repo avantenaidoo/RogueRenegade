@@ -11,6 +11,9 @@ import GitStatus from "../components/GitStatus";
 
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
+
+  const markClean = useEditorStore(state => state.markClean);
+
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
@@ -126,9 +129,12 @@ export default function Workspace() {
         {/* Save Button */}
         <button
           className="mt-2 px-4 py-2 bg-default dark:bg-muted text-default dark:text-default border border-default dark:border-muted rounded hover:bg-gray-300 dark:hover:bg-gray-700"
-          onClick={() =>
-            activeTab && saveFile(activeTab.path, activeTab.content)
-          }
+          onClick={() => {
+            if (activeTab) {
+              saveFile(activeTab.path, activeTab.content);
+              markClean(activeTab.path); // mark as clean
+            }
+          }}
         >
           Save
         </button>
