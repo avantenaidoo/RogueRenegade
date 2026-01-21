@@ -28,9 +28,9 @@ export default function FileExplorer() {
   }
 
   return (
-    <div className="w-50 border-r border-gray-300 dark:border-gray-700 bg-white dark:bg-black">
-      <h4 className="text-black dark:text-white">Files</h4>
-      <ul className="text-black dark:text-white">
+    <div className="w-50 border-r border-(--border) dark:border-(--border-dark) bg-(--bg-main) dark:bg-(--bg-main-dark) p-2">
+      <h4 className="text-(--text-main) dark:text-(--text-main-dark) font-semibold mb-2">Files</h4>
+      <ul className="text-(--text-main) dark:text-(--text-main-dark)">
         {files.map(f => (
           <li
             key={f}

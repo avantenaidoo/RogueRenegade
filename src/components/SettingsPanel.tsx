@@ -4,20 +4,33 @@ interface SettingsProps {
 }
 
 export default function SettingsPanel({ theme, setTheme }: SettingsProps) {
+  const isDark = theme === "vs-dark";
+
   return (
-    <div className="border-t border-gray-300 dark:border-gray-700 p-2 flex flex-col gap-2 bg-white dark:bg-black">
-      <h4 className="text-black dark:text-white">Settings</h4>
-      <label className="flex flex-col text-black dark:text-white">
-        Theme:
-        <select
-          value={theme}
-          onChange={e => setTheme(e.target.value as any)}
-          className="mt-1 px-2 py-1 border border-gray-400 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-black dark:text-white"
+    <div className="border-t border-(--border) dark:border-(--border-dark) p-2 flex flex-col gap-2 bg-(--bg-main) dark:bg-(--bg-main-dark)">
+      <h4 className="text-(--text-main) dark:text-(--text-main-dark) font-semibold">Settings</h4>
+
+      <div className="flex items-center gap-2 text-(--text-main) dark:text-(--text-main-dark)">
+        <span>Theme:</span>
+
+        {/* Modern dark/light toggle */}
+        <button
+          onClick={() => setTheme(isDark ? "vs-light" : "vs-dark")}
+          className={`relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none
+            ${isDark ? "bg-gray-800" : "bg-gray-300"}`}
         >
-          <option value="vs-dark">Dark</option>
-          <option value="vs-light">Light</option>
-        </select>
-      </label>
+          {/* Slider circle */}
+          <span
+            className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform duration-300
+              ${isDark ? "translate-x-7 bg-black" : "translate-x-0 bg-white"}`}
+          />
+        </button>
+
+        {/* Optional text label next to toggle */}
+        <span className="ml-2 text-(--text-main) dark:text-(--text-main-dark)">
+          {isDark ? "Dark" : "Light"}
+        </span>
+      </div>
     </div>
   );
 }
