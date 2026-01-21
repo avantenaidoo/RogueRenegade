@@ -61,3 +61,32 @@ export async function clone(url: string, localPath: string) {
     console.error("Clone failed:", err);
   }
 }
+
+// --- NEW: Git status utilities ---
+
+// Get current branch
+export async function getCurrentBranch(): Promise<string | null> {
+  try {
+    if (!dir) return null;
+    const branch = await git.currentBranch({ fs, dir, fullname: false });
+    return branch || "detached";
+  } catch (err) {
+    console.error("Get branch failed:", err);
+    return null;
+  }
+}
+
+// Get list of files with uncommitted changes
+export async function getUncommittedFiles(): Promise<string[]> {
+  try {
+    if (!dir) return [];
+    const statusMatrix = await git.statusMatrix({ fs, dir });
+    // statusMatrix = [ [filepath, HEAD, workingDir, stage], ... ]
+    return statusMatrix
+      .filter(row => row[1] !== row[2] || row[2] !== row[3]) // changed
+      .map(row => row[0]);
+  } catch (err) {
+    console.error("Get uncommitted files failed:", err);
+    return [];
+  }
+}
