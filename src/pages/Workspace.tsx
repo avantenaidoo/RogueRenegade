@@ -83,35 +83,54 @@ export default function Workspace() {
       <div className="flex-1 flex flex-col">
         {/* Tab bar */}
         <div className="flex border-b border-gray-300 dark:border-gray-700">
-          {tabs.map((t, i) => (
-            <div
-              key={t.path}
-              className={`px-2 py-1 cursor-pointer ${
-                i === activeTabIndex
-                  ? "bg-gray-200 dark:bg-gray-800"
-                  : dirtyFiles.includes(t.path)
-                  ? "bg-red-100 dark:bg-red-900"
-                  : "bg-gray-100 dark:bg-gray-900"
-              }`}
-              onClick={() => setActiveTab(i)}
-            >
-              <span
-                className={`font-semibold ${
-                  dirtyFiles.includes(t.path)
-                    ? "text-red-500 dark:text-red-400"
-                    : "text-default dark:text-muted"
+          {tabs.map((t, i) => {
+            const isDirty = dirtyFiles.includes(t.path); // check dirty state
+            return (
+              <div
+                key={t.path}
+                className={`px-2 py-1 cursor-pointer ${
+                  i === activeTabIndex
+                    ? "bg-gray-200 dark:bg-gray-800"
+                    : "bg-gray-100 dark:bg-gray-900"
                 }`}
+                style={{ display: "flex", alignItems: "center", gap: "5px" }}
+                onClick={() => setActiveTab(i)}
               >
-                {t.path.split("/").pop()}
-              </span>
-              <button
-                className="ml-2 text-red-500 dark:text-red-400"
-                onClick={() => closeTab(i)}
-              >
-                x
-              </button>
-            </div>
-          ))}
+                {/* File name */}
+                <span
+                  className={`font-semibold ${
+                    isDirty ? "text-red-500 dark:text-red-400" : "text-default dark:text-muted"
+                  }`}
+                >
+                  {t.path.split("/").pop()}
+                </span>
+
+                {/* Red dot for dirty files */}
+                {isDirty && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "red",
+                      display: "inline-block",
+                    }}
+                  />
+                )}
+
+                {/* Close button */}
+                <button
+                  className="ml-2 text-red-500 dark:text-red-400"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(i);
+                  }}
+                >
+                  x
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* Editor */}
