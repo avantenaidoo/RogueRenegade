@@ -28,11 +28,17 @@ export default function FileExplorer() {
   }
 
   return (
-    <div style={{ width: "200px", borderRight: "1px solid gray" }}>
-      <h4>Files</h4>
-      <ul>
+    <div className="w-50 border-r border-gray-300 dark:border-gray-700 bg-white dark:bg-black">
+      <h4 className="text-black dark:text-white">Files</h4>
+      <ul className="text-black dark:text-white">
         {files.map(f => (
-          <li key={f} onClick={() => openFile(f)}>{f}</li>
+          <li
+            key={f}
+            onClick={() => openFile(f)}
+            className="cursor-pointer hover:underline"
+          >
+            {f}
+          </li>
         ))}
       </ul>
     </div>

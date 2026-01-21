@@ -14,7 +14,43 @@ export default function Workspace() {
 
   const activeTab = tabs[activeTabIndex];
 
-  // Update Tailwind dark class when isDarkMode changes
+  // =========================
+  // 🔍 MUTATION OBSERVER DEBUG
+  // =========================
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        if (m.type === "attributes") {
+          const el = m.target as HTMLElement;
+          const styles = getComputedStyle(el);
+          if (
+            document.documentElement.classList.contains("dark") &&
+            styles.backgroundColor !== "rgb(0, 0, 0)" &&
+            styles.backgroundColor !== "rgba(0, 0, 0, 0)"
+          ) {
+            console.warn(
+              "🧨 ELEMENT WITH LIGHT BACKGROUND IN DARK MODE:",
+              el,
+              styles.backgroundColor,
+              styles.color
+            );
+          }
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style", "class"],
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // =========================
+  // 🌗 DARK MODE TOGGLER
+  // =========================
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
@@ -23,10 +59,19 @@ export default function Workspace() {
       document.documentElement.classList.remove("dark");
       setTheme("vs-light");
     }
+
+    // 🔎 Computed style check
+    setTimeout(() => {
+      const styles = getComputedStyle(document.body);
+      console.group("🌗 COMPUTED BODY STYLES");
+      console.log("background:", styles.backgroundColor);
+      console.log("color:", styles.color);
+      console.groupEnd();
+    }, 300);
   }, [isDarkMode]);
 
   return (
-    <div className="flex h-screen bg-white text-black dark:bg-black dark:text-white">
+    <div className="flex h-screen bg-default text-default dark:bg-muted dark:text-default">
       <FileExplorer />
 
       <div className="flex-1 flex flex-col">
@@ -42,7 +87,7 @@ export default function Workspace() {
               }`}
               onClick={() => setActiveTab(i)}
             >
-              <span className="font-semibold dark:text-lime-400">
+              <span className="font-semibold text-default dark:text-muted">
                 {t.path.split("/").pop()}
               </span>
               <button
@@ -67,7 +112,7 @@ export default function Workspace() {
 
         {/* Save Button */}
         <button
-          className="mt-2 px-4 py-2 bg-gray-200 dark:bg-gray-800 text-black dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-700"
+          className="mt-2 px-4 py-2 bg-default dark:bg-muted text-default dark:text-default border border-default dark:border-muted rounded hover:bg-gray-300 dark:hover:bg-gray-700"
           onClick={() =>
             activeTab && saveFile(activeTab.path, activeTab.content)
           }

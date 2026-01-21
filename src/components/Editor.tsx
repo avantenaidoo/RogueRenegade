@@ -9,7 +9,7 @@ interface EditorProps {
 
 export default function Editor({ value, onChange, theme, path }: EditorProps) {
   return (
-    <div style={{ flex: 1, height: "100%" }}>
+    <div className="flex-1 h-full flex flex-col bg-white dark:bg-black">
       <MonacoEditor
         height="100%"
         language="javascript"
@@ -18,7 +18,9 @@ export default function Editor({ value, onChange, theme, path }: EditorProps) {
         onChange={onChange}
         options={{ automaticLayout: true }}
       />
-      <div style={{ fontSize: 12, color: "#888", padding: "2px 5px" }}>{path}</div>
+      <div className="text-xs text-gray-700 dark:text-gray-300 px-1 py-0.5 bg-white dark:bg-black">
+        {path}
+      </div>
     </div>
   );
 }
