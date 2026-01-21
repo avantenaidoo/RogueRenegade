@@ -16,13 +16,12 @@ export default function SettingsPanel({ theme, setTheme }: SettingsProps) {
         {/* Modern dark/light toggle */}
         <button
           onClick={() => setTheme(isDark ? "vs-light" : "vs-dark")}
-          className={`relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none
-            ${isDark ? "bg-gray-800" : "bg-gray-300"}`}
+          className="relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none bg-(--toggle-track)"
         >
           {/* Slider circle */}
           <span
             className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform duration-300
-              ${isDark ? "translate-x-7 bg-black" : "translate-x-0 bg-white"}`}
+            ${isDark ? "translate-x-7" : "translate-x-0"} bg-(--foreground)`}
           />
         </button>
 
