@@ -1,3 +1,4 @@
+// src/pages/Workspace.tsx
 import { useState, useEffect } from "react";
 import { useEditorStore } from "../store";
 import Editor from "../components/Editor";
@@ -8,11 +9,11 @@ import { saveFile } from "../utils/fs";
 import "../App.css";
 import GitStatus from "../components/GitStatus";
 
-
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
 
   const activeTab = tabs[activeTabIndex];
 
@@ -85,11 +86,19 @@ export default function Workspace() {
               className={`px-2 py-1 cursor-pointer ${
                 i === activeTabIndex
                   ? "bg-gray-200 dark:bg-gray-800"
+                  : dirtyFiles.includes(t.path)
+                  ? "bg-red-100 dark:bg-red-900"
                   : "bg-gray-100 dark:bg-gray-900"
               }`}
               onClick={() => setActiveTab(i)}
             >
-              <span className="font-semibold text-default dark:text-muted">
+              <span
+                className={`font-semibold ${
+                  dirtyFiles.includes(t.path)
+                    ? "text-red-500 dark:text-red-400"
+                    : "text-default dark:text-muted"
+                }`}
+              >
                 {t.path.split("/").pop()}
               </span>
               <button
@@ -106,7 +115,9 @@ export default function Workspace() {
         {activeTab && (
           <Editor
             value={activeTab.content}
-            onChange={(val) => val !== undefined && updateTab(activeTabIndex, val)}
+            onChange={(val) =>
+              val !== undefined && updateTab(activeTabIndex, val)
+            }
             theme={theme}
             path={activeTab.path}
           />
@@ -121,9 +132,9 @@ export default function Workspace() {
         >
           Save
         </button>
-        
+
         {/* --- Git Status Bar --- */}
-        <GitStatus />
+        <GitStatus onDirtyFilesChange={(files) => setDirtyFiles(files)} />
         <GitPanel />
 
         {/* Settings Panel */}
