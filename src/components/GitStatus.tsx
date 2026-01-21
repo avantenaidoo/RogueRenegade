@@ -33,14 +33,7 @@ export default function GitStatus() {
   }, [activeTab]);
 
   return (
-    <div style={{
-      borderTop: "1px solid gray",
-      padding: "5px",
-      fontSize: "12px",
-      background: "#f5f5f5",
-      display: "flex",
-      justifyContent: "space-between"
-    }}>
+    <div className="border-t border-default p-1 text-sm flex justify-between bg-muted text-default">
       <div>Branch: {branch || "N/A"}</div>
       <div>
         {dirtyFiles.length > 0 ? `Uncommitted: ${dirtyFiles.join(", ")}` : "Clean"}
