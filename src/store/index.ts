@@ -1,8 +1,10 @@
 import { create } from "zustand";
+import { getBranch } from "../utils/git";
 
 interface FileTab {
   path: string;
   content: string;
+  branch?: string | null;
 }
 
 interface EditorState {
@@ -21,13 +23,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabIndex: 0,
   dirtyFiles: [],
-  addTab: (path, content) => {
+  addTab: async (path, content) => {
     const existingIndex = get().tabs.findIndex(t => t.path === path);
     if (existingIndex >= 0) {
       set({ activeTabIndex: existingIndex });
     } else {
+      const branch = await getBranch(path);
+
       set(state => ({
-        tabs: [...state.tabs, { path, content }],
+        tabs: [...state.tabs, { path, content, branch }],
         activeTabIndex: state.tabs.length,
       }));
     }
