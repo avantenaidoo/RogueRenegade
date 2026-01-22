@@ -5,7 +5,7 @@ import { commit, push, pull, clone, initGit } from "../utils/git";
 export default function GitPanel() {
   const [message, setMessage] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
-  const { tabs, activeTabIndex } = useEditorStore();
+  const { tabs, activeTabIndex, markClean } = useEditorStore();
   const activeTab = tabs[activeTabIndex];
 
   async function handleCommit() {
@@ -13,6 +13,7 @@ export default function GitPanel() {
     const folder = activeTab.path.split("/").slice(0, -1).join("/");
     initGit(folder);
     await commit(activeTab.path, message);
+    markClean(activeTab.path); // ✅ clear red dot after commit
   }
 
   // =========================
