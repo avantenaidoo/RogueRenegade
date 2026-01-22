@@ -1,6 +1,7 @@
 import * as git from "isomorphic-git";
 import LightningFS from "@isomorphic-git/lightning-fs";
 import http from "isomorphic-git/http/web";
+import path from "path";
 
 // Use an in-memory FS for the browser
 const fs = new LightningFS("fs"); // keep your FS instance
@@ -88,5 +89,43 @@ export async function getUncommittedFiles(): Promise<string[]> {
   } catch (err) {
     console.error("Get uncommitted files failed:", err);
     return [];
+  }
+}
+
+// Get branch name for the repo containing a file
+export async function getBranch(filePath: string): Promise<string | null> {
+  try {
+    if (!filePath) return null;
+
+    let current = path.dirname(filePath);
+
+    // Walk up directories until we find .git
+    while (current !== "/" && !(await fsExists(path.join(current, ".git")))) {
+      current = path.dirname(current);
+    }
+
+    if (current === "/" || !(await fsExists(path.join(current, ".git")))) {
+      return null; // Not a git repo
+    }
+
+    const branch = await git.currentBranch({
+      fs,
+      dir: current,
+      fullname: false,
+    });
+
+    return branch ?? "detached";
+  } catch (err) {
+    console.error("Failed to get branch:", err);
+    return null;
+  }
+}
+
+async function fsExists(p: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(p);
+    return true;
+  } catch {
+    return false;
   }
 }
