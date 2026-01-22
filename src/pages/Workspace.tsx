@@ -145,7 +145,7 @@ export default function Workspace() {
           <Editor
             value={activeTab.content}
             onChange={(val) =>
-              val !== undefined && updateTab(activeTabIndex, val)
+              val !== undefined && updateTab(activeTabIndex, { content: val })
             }
             theme={theme}
             path={activeTab.path}

@@ -12,7 +12,7 @@ interface EditorState {
   activeTabIndex: number;
   dirtyFiles: string[];
   addTab: (path: string, content: string) => void;
-  updateTab: (index: number, content: string) => void;
+  updateTab: (index: number, updates: Partial<FileTab>) => void;
   setActiveTab: (index: number) => void;
   closeTab: (index: number) => void;
   markDirty: (path: string) => void;
@@ -36,16 +36,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }));
     }
   },
-  updateTab: (index, content) => {
+  updateTab: (index, updates) => {
     set(state => {
       const tabs = [...state.tabs];
-      tabs[index].content = content;
+      tabs[index] = { ...tabs[index], ...updates };
 
-      // Mark as dirty if not already
-      const dirtyFiles = new Set(state.dirtyFiles);
-      dirtyFiles.add(tabs[index].path);
+      // If content changed, mark as dirty
+      if (updates.content !== undefined) {
+        const dirtyFiles = new Set(state.dirtyFiles);
+        dirtyFiles.add(tabs[index].path);
+        return { tabs, dirtyFiles: Array.from(dirtyFiles) };
+      }
 
-      return { tabs, dirtyFiles: Array.from(dirtyFiles) };
+      return { tabs };
     });
   },
   setActiveTab: index => set({ activeTabIndex: index }),
