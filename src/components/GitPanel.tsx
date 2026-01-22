@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useEditorStore } from "../store";
-import { commit, push, pull, clone, initGit } from "../utils/git";
+import { commit, push, pull, clone, initGit, getBranch} from "../utils/git";
 
 export default function GitPanel() {
   const [message, setMessage] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const updateTab = useEditorStore(state => state.updateTab);
   const { tabs, activeTabIndex, markClean } = useEditorStore();
   const activeTab = tabs[activeTabIndex];
 
@@ -14,7 +15,25 @@ export default function GitPanel() {
     initGit(folder);
     await commit(activeTab.path, message);
     markClean(activeTab.path); // ✅ clear red dot after commit
+
+    const branch = await getBranch(activeTab.path);
+    updateTab(activeTabIndex, { branch }); // ✅ update branch info after commit  
   }
+
+  async function handleClone() {
+  if (!repoUrl) return;
+
+  await clone(repoUrl, "/cloned-repo");
+
+  // Find the cloned tab
+  const clonedTab = useEditorStore.getState().tabs.find(t => t.path.includes("/cloned-repo"));
+  if (clonedTab) {
+    const index = useEditorStore.getState().tabs.findIndex(t => t.path === clonedTab.path);
+    const branch = await getBranch(clonedTab.path);
+    updateTab(index, { branch });
+  }
+}
+
 
   // =========================
   // 🔍 DEBUG MUTATION OBSERVER
@@ -80,7 +99,7 @@ export default function GitPanel() {
       />
       <button
         className="px-2 py-1 bg-(--button-bg) dark:bg-(--button-bg-dark) text-(--text-main) dark:text-(--text-main-dark) rounded hover:bg-(--button-hover-bg) dark:hover:bg-(--button-hover-bg-dark)"
-        onClick={() => clone(repoUrl, "/cloned-repo")}
+        onClick={handleClone}
       >
         Clone
       </button>
