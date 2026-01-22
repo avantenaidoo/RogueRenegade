@@ -105,6 +105,13 @@ export default function Workspace() {
                   {t.path.split("/").pop()}
                 </span>
 
+                {/* Branch badge */}
+                {t.branch && (
+                  <span className="ml-2 px-1 text-xs rounded bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                    {t.branch}
+                  </span>
+                )}
+
                 {/* Red dot for dirty files */}
                 {isDirty && (
                   <span
