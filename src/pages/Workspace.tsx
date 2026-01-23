@@ -8,6 +8,7 @@ import SettingsPanel from "../components/SettingsPanel";
 import { saveFile } from "../utils/fs";
 import "../App.css";
 import GitStatus from "../components/GitStatus";
+import StatusBar from "../components/StatusBar";
 
 export default function Workspace() {
   const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } = useEditorStore();
@@ -77,14 +78,16 @@ export default function Workspace() {
   }, [isDarkMode]);
 
   return (
-    <div className="flex h-screen bg-default text-default dark:bg-muted dark:text-default">
+     <div className="flex flex-col h-screen bg-default text-default dark:bg-muted dark:text-default">
+    {/* Main workspace */}
+    <div className="flex flex-1">
       <FileExplorer />
 
       <div className="flex-1 flex flex-col">
         {/* Tab bar */}
         <div className="flex border-b border-gray-300 dark:border-gray-700">
           {tabs.map((t, i) => {
-            const isDirty = dirtyFiles.includes(t.path); // check dirty state
+            const isDirty = dirtyFiles.includes(t.path);
             return (
               <div
                 key={t.path}
@@ -96,23 +99,22 @@ export default function Workspace() {
                 style={{ display: "flex", alignItems: "center", gap: "5px" }}
                 onClick={() => setActiveTab(i)}
               >
-                {/* File name */}
                 <span
                   className={`font-semibold ${
-                    isDirty ? "text-red-500 dark:text-red-400" : "text-default dark:text-muted"
+                    isDirty
+                      ? "text-red-500 dark:text-red-400"
+                      : "text-default dark:text-muted"
                   }`}
                 >
                   {t.path.split("/").pop()}
                 </span>
 
-                {/* Branch badge */}
                 {t.branch && (
                   <span className="ml-2 px-1 text-xs rounded bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                     {t.branch}
                   </span>
                 )}
 
-                {/* Red dot for dirty files */}
                 {isDirty && (
                   <span
                     style={{
@@ -125,7 +127,6 @@ export default function Workspace() {
                   />
                 )}
 
-                {/* Close button */}
                 <button
                   className="ml-2 text-red-500 dark:text-red-400"
                   onClick={(e) => {
@@ -152,29 +153,30 @@ export default function Workspace() {
           />
         )}
 
-        {/* Save Button */}
+        {/* Save + Git */}
         <button
           className="mt-2 px-4 py-2 bg-default dark:bg-muted text-default dark:text-default border border-default dark:border-muted rounded hover:bg-gray-300 dark:hover:bg-gray-700"
           onClick={() => {
             if (activeTab) {
               saveFile(activeTab.path, activeTab.content);
-              markClean(activeTab.path); // mark as clean
+              markClean(activeTab.path);
             }
           }}
         >
           Save
         </button>
 
-        {/* --- Git Status Bar --- */}
-        <GitStatus onDirtyFilesChange={(files) => setDirtyFiles(files)} />
+        <GitStatus onDirtyFilesChange={setDirtyFiles} />
         <GitPanel />
-
-        {/* Settings Panel */}
         <SettingsPanel
           theme={theme}
           setTheme={(newTheme) => setIsDarkMode(newTheme === "vs-dark")}
         />
       </div>
     </div>
+
+    {/* ✅ Status bar ALWAYS at bottom */}
+    <StatusBar />
+  </div>
   );
 }
