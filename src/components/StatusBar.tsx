@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../store";
-import { getBranch } from "../utils/git";
+import { getBranch, getRepoStatus } from "../utils/git";
 import { readFile } from "../utils/fs";
 
 export default function StatusBar() {
@@ -10,15 +10,24 @@ export default function StatusBar() {
   const [branch, setBranch] = useState<string | null>(null);
   const [unsaved, setUnsaved] = useState(false);
   const [fileType, setFileType] = useState<string>("");
+  const [staged, setStaged] = useState(0);
+  const [unstaged, setUnstaged] = useState(0);
+  const [repoRoot, setRepoRoot] = useState("");
 
-  // Update branch when active tab changes
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+
+  // Update branch + repo status
   useEffect(() => {
-    async function updateBranch() {
+    async function updateGitInfo() {
       if (!activeTab) return;
       const b = await getBranch(activeTab.path);
       setBranch(b);
+      const status = await getRepoStatus(activeTab.path);
+      setStaged(status.staged);
+      setUnstaged(status.unstaged);
+      setRepoRoot(status.repoRoot);
     }
-    updateBranch();
+    updateGitInfo();
   }, [activeTab]);
 
   // Check for unsaved changes
@@ -35,11 +44,27 @@ export default function StatusBar() {
     checkUnsaved();
   }, [activeTab?.content]);
 
-  // Get file type from extension
+  // File type
   useEffect(() => {
     if (!activeTab) return;
     const ext = activeTab.path.split(".").pop();
     setFileType(ext || "");
+  }, [activeTab]);
+
+  // Cursor position listener
+  useEffect(() => {
+    if (!activeTab) return;
+
+    const listener = (e: any) => {
+      if (!e?.position) return;
+      setCursorPos({ line: e.position.lineNumber, col: e.position.column });
+    };
+
+    // Listen for Monaco editor cursor change
+    const monacoEditor = document.querySelector(".monaco-editor") as any;
+    monacoEditor?.addEventListener("cursorPositionChanged", listener);
+
+    return () => monacoEditor?.removeEventListener("cursorPositionChanged", listener);
   }, [activeTab]);
 
   if (!activeTab) return null;
@@ -61,8 +86,13 @@ export default function StatusBar() {
       <div>
         {branch && <span>Branch: {branch}</span>}
         {unsaved && <span style={{ color: "red", marginLeft: 10 }}>● Unsaved</span>}
+        <span style={{ marginLeft: 10 }}>
+          Staged: {staged} | Unstaged: {unstaged}
+        </span>
       </div>
-      <div>Type: {fileType}</div>
+      <div>
+        {repoRoot && <span>{repoRoot}</span>} | Type: {fileType} | Ln {cursorPos.line}, Col {cursorPos.col}
+      </div>
     </div>
   );
 }

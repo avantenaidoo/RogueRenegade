@@ -9,10 +9,29 @@ const fs = new LightningFS("fs"); // keep your FS instance
 let dir = "";
 
 // Initialize Git in a folder
-export function initGit(rootPath: string) {
-  dir = rootPath;
-  console.log("Git initialized at", dir);
+// export function initGit(rootPath: string) {
+//   dir = rootPath;
+//   console.log("Git initialized at", dir);
+// }
+
+let repoDir: string;
+let repoFs: any;
+
+export async function initGit(rootPath?: string) {
+  if (rootPath) {
+    dir = rootPath;
+
+    repoDir = rootPath;
+    repoFs = fs;
+
+    console.log("Git initialized at", dir);
+  } else {
+    repoFs = new LightningFS("fs");
+    repoDir = "/";
+  }
 }
+
+
 
 // Commit a file
 export async function commit(filePath: string, message: string) {
@@ -93,31 +112,61 @@ export async function getUncommittedFiles(): Promise<string[]> {
 }
 
 // Get branch name for the repo containing a file
-export async function getBranch(filePath: string): Promise<string | null> {
+// export async function getBranch(filePath: string): Promise<string | null> {
+//   try {
+//     if (!filePath) return null;
+
+//     let current = path.dirname(filePath);
+
+//     // Walk up directories until we find .git
+//     while (current !== "/" && !(await fsExists(path.join(current, ".git")))) {
+//       current = path.dirname(current);
+//     }
+
+//     if (current === "/" || !(await fsExists(path.join(current, ".git")))) {
+//       return null; // Not a git repo
+//     }
+
+//     const branch = await git.currentBranch({
+//       fs,
+//       dir: current,
+//       fullname: false,
+//     });
+
+//     return branch ?? "detached";
+//   } catch (err) {
+//     console.error("Failed to get branch:", err);
+//     return null;
+//   }
+// }
+
+// Get current branch
+export async function getBranch(filePath: string) {
   try {
-    if (!filePath) return null;
+    const repoRoot = await git.findRoot({ fs: repoFs, filepath: filePath });
+    const branch = await git.currentBranch({ fs: repoFs, dir: repoRoot, fullname: false });
+    return branch || "main";
+  } catch {
+    return null;
+  }
+}
 
-    let current = path.dirname(filePath);
+// Get repo status (staged / unstaged changes)
+export async function getRepoStatus(filePath: string) {
+  try {
+    const repoRoot = await git.findRoot({ fs: repoFs, filepath: filePath });
+    const statusMatrix = await git.statusMatrix({ fs: repoFs, dir: repoRoot });
+    let staged = 0;
+    let unstaged = 0;
 
-    // Walk up directories until we find .git
-    while (current !== "/" && !(await fsExists(path.join(current, ".git")))) {
-      current = path.dirname(current);
-    }
-
-    if (current === "/" || !(await fsExists(path.join(current, ".git")))) {
-      return null; // Not a git repo
-    }
-
-    const branch = await git.currentBranch({
-      fs,
-      dir: current,
-      fullname: false,
+    statusMatrix.forEach(([filepath, head, workdir, stage]) => {
+      if (head !== stage) staged++;
+      if (head !== workdir) unstaged++;
     });
 
-    return branch ?? "detached";
-  } catch (err) {
-    console.error("Failed to get branch:", err);
-    return null;
+    return { staged, unstaged, repoRoot };
+  } catch {
+    return { staged: 0, unstaged: 0, repoRoot: "" };
   }
 }
 
