@@ -9,7 +9,7 @@ export type CursorPosition = {
 };
 
 export function initCollaboration(username: string, roomId: string) {
-  socket = io("http://localhost:3000");
+  socket = io("http://127.0.0.1:3000");
 
   socket.emit("joinRoom", { username, roomId });
 }

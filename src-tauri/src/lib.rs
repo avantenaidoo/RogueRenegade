@@ -1,5 +1,6 @@
-use tauri::Emitter;   // Required for app_handle.emit
-use std::fs;          // Standard Rust filesystem
+use tauri::Emitter;
+use std::fs;
+use git2::{Repository, StatusOptions};
 
 // ---------------------------
 // GREET COMMAND
@@ -10,7 +11,7 @@ fn greet(name: &str) -> String {
 }
 
 // ---------------------------
-// FS PLUGIN COMMANDS
+// FS COMMANDS
 // ---------------------------
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
@@ -23,26 +24,119 @@ fn write_file(path: String, contents: String) -> Result<(), String> {
 }
 
 // ---------------------------
-// RUN FUNCTION (MAIN ENTRYPOINT)
+// GIT COMMANDS
+// ---------------------------
+#[tauri::command]
+fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repo: {}", e))?;
+
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+
+    let statuses = repo
+        .statuses(Some(&mut opts))
+        .map_err(|e| format!("Failed to get statuses: {}", e))?;
+
+    Ok(statuses
+        .iter()
+        .filter_map(|e| e.path().map(|p| p.to_string()))
+        .collect())
+}
+
+#[tauri::command]
+fn get_current_branch(repo_path: String) -> Result<String, String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repo: {}", e))?;
+
+    let branch = match repo.head() {
+        Ok(head) => head
+            .shorthand()
+            .unwrap_or("DETACHED")
+            .to_string(),
+        Err(_) => "NO_COMMITS".to_string(), // empty repo
+    };
+
+    Ok(branch)
+}
+
+#[tauri::command]
+fn stage_and_commit(
+    repo_path: String,
+    file_path: String,
+    message: String,
+) -> Result<(), String> {
+    let repo = Repository::open(repo_path)
+        .map_err(|e| e.to_string())?;
+
+    let mut index = repo.index().map_err(|e| e.to_string())?;
+    index
+        .add_path(std::path::Path::new(&file_path))
+        .map_err(|e| e.to_string())?;
+    index.write().map_err(|e| e.to_string())?;
+
+    let tree_id = index.write_tree().map_err(|e| e.to_string())?;
+    let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
+
+    let sig = repo.signature().map_err(|e| e.to_string())?;
+
+    let parent_commit = repo
+        .head()
+        .ok()
+        .and_then(|h| h.target())
+        .and_then(|id| repo.find_commit(id).ok());
+
+    match parent_commit {
+        Some(parent) => {
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &message,
+                &tree,
+                &[&parent],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        None => {
+            // first commit
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &message,
+                &tree,
+                &[],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+// ---------------------------
+// RUN FUNCTION (ENTRYPOINT)
 // ---------------------------
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // Initialize plugins
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init()) // <-- ADD THIS LINE
-        // Register commands callable from JS/TS
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             read_file,
-            write_file
+            write_file,
+            get_uncommitted_files,
+            get_current_branch,
+            stage_and_commit
         ])
         .setup(|app| {
             println!("🟢 Tauri app setup complete!");
-            let app_handle = app.handle();
-            // Emit event to frontend
-            app_handle.emit("app-ready", ()).unwrap();
+            app.handle().emit("app-ready", ()).unwrap();
             Ok(())
         })
         .run(tauri::generate_context!())

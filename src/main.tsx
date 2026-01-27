@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import Workspace from "./pages/Workspace";
+import "./utils/chart";
+
 //import App from "./pages/App";
 import './App.css';
 

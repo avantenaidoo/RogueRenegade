@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getCurrentBranch, getUncommittedFiles, initGit } from "../utils/git";
+import { exists } from "@tauri-apps/plugin-fs";
+import { getCurrentBranch, getUncommittedFiles } from "../utils/git";
 import { useEditorStore } from "../store";
 
 interface GitStatusProps {
@@ -12,9 +13,19 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
 
   const [branch, setBranch] = useState<string | null>(null);
   const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
-
-  // NEW: whether branch modal is open
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+
+  function getRepoPath(filePath: string) {
+    return filePath.split("/").slice(0, -1).join("/");
+  }
+
+  async function isGitRepo(path: string) {
+    try {
+      return await exists(`${path}/.git`);
+    } catch {
+      return false;
+    }
+  }
 
   async function updateStatus() {
     if (!activeTab) {
@@ -24,15 +35,30 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
       return;
     }
 
-    const folder = activeTab.path.split("/").slice(0, -1).join("/");
-    initGit(folder);
+    const repoPath = getRepoPath(activeTab.path);
 
-    const currentBranch = await getCurrentBranch();
-    const uncommitted = await getUncommittedFiles();
+    // ✅ HARD GUARD — NO GIT, NO STATUS
+    const hasGit = await isGitRepo(repoPath);
+    if (!hasGit) {
+      setBranch(null);
+      setDirtyFiles([]);
+      onDirtyFilesChange?.([]);
+      return;
+    }
 
-    setBranch(currentBranch);
-    setDirtyFiles(uncommitted);
-    onDirtyFilesChange?.(uncommitted);
+    try {
+      const currentBranch = await getCurrentBranch(repoPath);
+      const uncommitted = await getUncommittedFiles(repoPath);
+
+      setBranch(currentBranch);
+      setDirtyFiles(uncommitted);
+      onDirtyFilesChange?.(uncommitted);
+    } catch (err) {
+      console.error("Git status update failed:", err);
+      setBranch(null);
+      setDirtyFiles([]);
+      onDirtyFilesChange?.([]);
+    }
   }
 
   useEffect(() => {
@@ -43,26 +69,27 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
 
   return (
     <div className="border-t border-default p-1 text-sm flex justify-between bg-muted text-default">
-      {/* 👈 Clickable branch */}
       <div>
         Branch:{" "}
         <button
           className="underline text-blue-500 hover:text-blue-700"
           onClick={() => setIsBranchModalOpen(true)}
+          disabled={!branch}
         >
-          {branch || "N/A"}
+          {branch ?? "Not a Git repo"}
         </button>
       </div>
 
       <div>
-        {dirtyFiles.length > 0 ? `Uncommitted: ${dirtyFiles.join(", ")}` : "Clean"}
+        {dirtyFiles.length > 0
+          ? `Uncommitted: ${dirtyFiles.join(", ")}`
+          : "Clean"}
       </div>
 
-      {/* 👈 Simple branch switcher modal placeholder */}
       {isBranchModalOpen && (
         <div className="absolute top-10 left-10 p-4 bg-muted text-default border shadow-lg z-50">
           <h4 className="font-bold mb-2">Switch Branch (Placeholder)</h4>
-          <p>Here you can later list branches and allow switching.</p>
+          <p>Branch switching UI goes here.</p>
           <button
             className="mt-2 px-2 py-1 bg-default hover:bg-muted"
             onClick={() => setIsBranchModalOpen(false)}

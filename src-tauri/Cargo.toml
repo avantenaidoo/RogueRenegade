@@ -28,3 +28,5 @@ tauri = { version = "2.9", features = [] }
 tauri-plugin-fs  = "^2"
 tauri-plugin-log = "^2"
 tauri-plugin-dialog = "2"
+
+git2 = "0.18"
