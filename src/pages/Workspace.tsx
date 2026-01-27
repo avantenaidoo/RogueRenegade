@@ -85,7 +85,7 @@ export default function Workspace() {
 
       <div className="flex-1 flex flex-col">
         {/* Tab bar */}
-        <div className="flex border-b border-gray-300 dark:border-gray-700">
+        <div className="flex border-b border-default bg=default">
           {tabs.map((t, i) => {
             const isDirty = dirtyFiles.includes(t.path);
             return (
@@ -93,8 +93,8 @@ export default function Workspace() {
                 key={t.path}
                 className={`px-2 py-1 cursor-pointer ${
                   i === activeTabIndex
-                    ? "bg-gray-200 dark:bg-gray-800"
-                    : "bg-gray-100 dark:bg-gray-900"
+                    ? "bg-muted text-default"
+                    : "bg-default text-muted hover:bg-muted"
                 }`}
                 style={{ display: "flex", alignItems: "center", gap: "5px" }}
                 onClick={() => setActiveTab(i)}
@@ -102,29 +102,21 @@ export default function Workspace() {
                 <span
                   className={`font-semibold ${
                     isDirty
-                      ? "text-red-500 dark:text-red-400"
-                      : "text-default dark:text-muted"
+                      ? "text-red-500"
+                      : "text-inherit"
                   }`}
                 >
                   {t.path.split("/").pop()}
                 </span>
 
                 {t.branch && (
-                  <span className="ml-2 px-1 text-xs rounded bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  <span className="ml-2 px-1 text-xs rounded bg-muted text-muted">
                     {t.branch}
                   </span>
                 )}
 
                 {isDirty && (
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "red",
-                      display: "inline-block",
-                    }}
-                  />
+                  <span className="w-2 h-2 rounded-full bg-red-500" />
                 )}
 
                 <button
