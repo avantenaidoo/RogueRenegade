@@ -7,27 +7,31 @@ export default function SettingsPanel({ theme, setTheme }: SettingsProps) {
   const isDark = theme === "vs-dark";
 
   return (
-    // <div className="border-t border-(--border) dark:border-(--border-dark) p-2 flex flex-col gap-2 bg-(--bg-main) dark:bg-(--bg-main-dark)">
-    <div className="h-full w-full flex items-center justify-center border-t border-(--border) dark:border-(--border-dark) bg-(--bg-main) dark:bg-(--bg-main-dark)">
-      <h4 className="text-(--text-main) dark:text-(--text-main-dark) font-semibold">Settings</h4>
+    <div className="h-full w-full flex flex-col gap-6 p-4">
+      {/* HEADER */}
+      <h4 className="text-(--text-main) dark:text-(--text-main-dark) font-semibold">
+        Settings
+      </h4>
 
-      <div className="flex items-center gap-2 text-(--text-main) dark:text-(--text-main-dark)">
-        <span>Theme:</span>
+      {/* THEME ROW */}
+      <div className="flex items-center gap-4 text-(--text-main) dark:text-(--text-main-dark)">
+        <span className="text-sm">Theme</span>
 
-        {/* Modern dark/light toggle */}
+        {/* TOGGLE — SAME INVERTED BEHAVIOR AS YOUR ORIGINAL */}
         <button
           onClick={() => setTheme(isDark ? "vs-light" : "vs-dark")}
-          className="relative w-14 h-7 rounded-full transition-colors duration-300 focus:outline-none bg-(--toggle-track)"
+          className="relative w-14 h-7 rounded-full transition-colors duration-300
+                     focus:outline-none bg-(--toggle-track)"
         >
-          {/* Slider circle */}
+          {/* THUMB */}
           <span
-            className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform duration-300
-            ${isDark ? "translate-x-7" : "translate-x-0"} bg-(--foreground)`}
+            className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full
+              transition-transform duration-300 bg-(--foreground)
+              ${isDark ? "translate-x-7" : "translate-x-0"}`}
           />
         </button>
 
-        {/* Optional text label next to toggle */}
-        <span className="ml-2 text-(--text-main) dark:text-(--text-main-dark)">
+        <span className="text-sm">
           {isDark ? "Dark" : "Light"}
         </span>
       </div>

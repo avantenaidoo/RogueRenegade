@@ -2,18 +2,7 @@
 import { useState, useEffect } from "react";
 import { useEditorStore } from "../store";
 
-import Editor from "../components/Editor";
-import FileExplorer from "../components/FileExplorer";
-import GitPanel from "../components/GitPanel";
-import SettingsPanel from "../components/SettingsPanel";
-import GitStatus from "../components/GitStatus";
-import StatusBar from "../components/StatusBar";
-import CollaborationPanel from "../components/CollaborationPanel";
-import InsightsPanel from "../components/InsightsPanel";
-import ZenModeWrapper from "../components/ZenModeWrapper";
 
-import { saveFile } from "../utils/fs";
-import { onSave } from "../utils/workflow";
 import { initCollaboration } from "../utils/collaboration";
 import { Canvas } from "@/components/Canvas";
 

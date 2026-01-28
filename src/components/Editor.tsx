@@ -16,7 +16,6 @@ export default function Editor({
 }: EditorProps) {
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      {/* -------- EDITOR -------- */}
       <div className="flex-1 min-h-0">
         <MonacoEditor
           height="100%"
@@ -25,10 +24,7 @@ export default function Editor({
           theme={theme}
           onChange={(val) => {
             onChange(val);
-
-            if (val !== undefined) {
-              workflowOnChange(path, val);
-            }
+            if (val !== undefined) workflowOnChange(path, val);
           }}
           options={{
             automaticLayout: true,
@@ -38,10 +34,8 @@ export default function Editor({
         />
       </div>
 
-      {/* -------- PATH BAR (BOTTOM, NOT SIDE) -------- */}
-      <div className="h-5 shrink-0 px-2 text-xs flex items-center
-                      bg-neutral-900 text-neutral-400 border-t border-neutral-800
-                      truncate">
+      <div className="h-5 shrink-0 px-2 text-xs flex items-center truncate
+                      bg-muted text-muted border-t border-default">
         {path}
       </div>
     </div>
