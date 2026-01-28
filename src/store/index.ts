@@ -8,11 +8,9 @@ interface FileTab {
 }
 
 interface EditorState {
+  /* ───── EDITOR ───── */
   tabs: FileTab[];
   activeTabIndex: number;
-
-  repoPath: string | null;
-  setRepoPath: (path: string) => void;
 
   addTab: (path: string, content: string) => void;
   updateTab: (index: number, updates: Partial<FileTab>) => void;
@@ -21,14 +19,22 @@ interface EditorState {
 
   markDirty: (path: string) => void;
   markClean: (path: string) => void;
+
+  /* ───── WORKSPACE ───── */
+  repoPath: string | null;
+  setRepoPath: (path: string) => void;
+
+  /* ───── RECENTS ───── */
+  recentFolders: string[];
+  addRecentFolder: (path: string) => void;
 }
 
+const RECENTS_KEY = "rride:recent-folders";
+
 export const useEditorStore = create<EditorState>((set, get) => ({
+  /* ───── EDITOR STATE ───── */
   tabs: [],
   activeTabIndex: 0,
-
-  repoPath: null,
-  setRepoPath: (path) => set({ repoPath: path }),
 
   addTab: (path, content) => {
     const existingIndex = get().tabs.findIndex(t => t.path === path);
@@ -80,4 +86,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tab.path === path ? { ...tab, dirty: false } : tab
       ),
     })),
+
+  /* ───── WORKSPACE ───── */
+  repoPath: null,
+  setRepoPath: (path) => set({ repoPath: path }),
+
+  /* ───── RECENTS ───── */
+  recentFolders: JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]"),
+
+  addRecentFolder: (path) => {
+    const current = get().recentFolders;
+
+    const next = [
+      path,
+      ...current.filter(p => p !== path),
+    ].slice(0, 10); // keep last 10 like VS Code
+
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+    set({ recentFolders: next });
+  },
 }));

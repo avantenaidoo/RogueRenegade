@@ -11,6 +11,11 @@ export async function openFolder() {
   // Allow Tauri access
   await invoke("allow_workspace_dir", { path: root });
 
-  // Update global state
-  useEditorStore.getState().setRepoPath(root);
+  const store = useEditorStore.getState();
+
+  // Update workspace
+  store.setRepoPath(root);
+
+  // ✅ ADD THIS LINE — THIS IS IT
+  store.addRecentFolder(root);
 }
