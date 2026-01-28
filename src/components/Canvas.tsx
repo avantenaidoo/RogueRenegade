@@ -72,7 +72,7 @@ export const Canvas: React.FC = () => {
                 }`}
               >
                 <span className="truncate max-w-40">
-                  {tab.path.split("/").pop()}
+                  {tab.path.split(/[\\/]/).pop()}
                 </span>
 
                 {tab.dirty && (

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { openFolder } from "../utils/openFolder";
+import { openFile } from "../utils/openFile";
 
 export default function TitleBar() {
   const [openMenu, setOpenMenu] = useState<null | "file">(null);
@@ -41,9 +42,19 @@ export default function TitleBar() {
           {/* FILE DROPDOWN */}
           {openMenu === "file" && (
             <div
-              className="absolute top-6 left-0 z-50 w-40
+              className="absolute top-6 left-0 z-50 w-44
                          bg-muted border border-default shadow-lg"
             >
+              <button
+                className="w-full text-left px-3 py-1 hover:bg-default/10"
+                onClick={() => {
+                  setOpenMenu(null);
+                  openFile();
+                }}
+              >
+                Open File…
+              </button>
+
               <button
                 className="w-full text-left px-3 py-1 hover:bg-default/10"
                 onClick={() => {
