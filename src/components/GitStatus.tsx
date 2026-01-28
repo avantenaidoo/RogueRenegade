@@ -1,20 +1,15 @@
+// src/components/GitStatus.tsx
 import { useEffect, useState } from "react";
 import { exists } from "@tauri-apps/plugin-fs";
 import { getCurrentBranch, getUncommittedFiles } from "../utils/git";
 import { useEditorStore } from "../store";
 
 export default function GitStatus() {
-  const {
-    tabs,
-    activeTabIndex,
-    dirtyFiles: editorDirtyFiles,
-  } = useEditorStore();
-
+  const { tabs, activeTabIndex } = useEditorStore();
   const activeTab = tabs[activeTabIndex];
 
   const [branch, setBranch] = useState<string | null>(null);
   const [gitDirtyFiles, setGitDirtyFiles] = useState<string[]>([]);
-  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
 
   function getRepoPath(filePath: string) {
     return filePath.split("/").slice(0, -1).join("/");
@@ -37,21 +32,16 @@ export default function GitStatus() {
 
     const repoPath = getRepoPath(activeTab.path);
 
-    const hasGit = await isGitRepo(repoPath);
-    if (!hasGit) {
+    if (!(await isGitRepo(repoPath))) {
       setBranch(null);
       setGitDirtyFiles([]);
       return;
     }
 
     try {
-      const currentBranch = await getCurrentBranch(repoPath);
-      const uncommitted = await getUncommittedFiles(repoPath);
-
-      setBranch(currentBranch);
-      setGitDirtyFiles(uncommitted);
-    } catch (err) {
-      console.error("Git status update failed:", err);
+      setBranch(await getCurrentBranch(repoPath));
+      setGitDirtyFiles(await getUncommittedFiles(repoPath));
+    } catch {
       setBranch(null);
       setGitDirtyFiles([]);
     }
@@ -59,67 +49,50 @@ export default function GitStatus() {
 
   useEffect(() => {
     updateStatus();
-    const interval = setInterval(updateStatus, 3000);
-    return () => clearInterval(interval);
+    const id = setInterval(updateStatus, 3000);
+    return () => clearInterval(id);
   }, [activeTab]);
 
-  // ─────────────────────────────────────────────
-  // 🔴 DIRTY STATE MERGE (VS CODE STYLE)
-  // ─────────────────────────────────────────────
-  const editorSet = new Set(editorDirtyFiles);
-  const gitSet = new Set(gitDirtyFiles);
+  /* ───────────── DIRTY MERGE (VS CODE LOGIC) ───────────── */
+
+  const editorDirtyFiles = tabs
+    .filter(t => t.dirty)
+    .map(t => t.path);
 
   const allDirtyFiles = Array.from(
     new Set([...editorDirtyFiles, ...gitDirtyFiles])
   );
 
-  const isDirty = allDirtyFiles.length > 0;
-
-  function fileLabel(file: string) {
+  function label(file: string) {
     const name = file.split("/").pop();
-    if (editorSet.has(file) && gitSet.has(file)) return `${name} (unsaved + git)`;
-    if (editorSet.has(file)) return `${name} (unsaved)`;
+    const editor = editorDirtyFiles.includes(file);
+    const git = gitDirtyFiles.includes(file);
+
+    if (editor && git) return `${name} (unsaved + git)`;
+    if (editor) return `${name} (unsaved)`;
     return `${name} (git)`;
   }
 
   return (
     <div className="h-full px-3 flex items-center gap-3 text-xs bg-muted text-default border-t border-default">
-      {/* 🔴 GLOBAL DIRTY DOT */}
-      {isDirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
+      {/* GLOBAL DIRTY DOT */}
+      {allDirtyFiles.length > 0 && (
+        <span className="w-2 h-2 rounded-full bg-red-500" />
+      )}
 
       <div>
-        Branch:{" "}
-        <button
-          className="underline text-blue-500 hover:text-blue-700"
-          onClick={() => setIsBranchModalOpen(true)}
-          disabled={!branch}
-        >
-          {branch ?? "Not a Git repo"}
-        </button>
+        Branch: <span className="font-semibold">{branch ?? "No Git repo"}</span>
       </div>
 
       <div className="truncate max-w-[60%]">
-        {isDirty ? (
+        {allDirtyFiles.length > 0 ? (
           <span className="text-red-400">
-            {allDirtyFiles.map(fileLabel).join(", ")}
+            {allDirtyFiles.map(label).join(", ")}
           </span>
         ) : (
           "Clean"
         )}
       </div>
-
-      {isBranchModalOpen && (
-        <div className="absolute top-10 left-10 p-4 bg-muted text-default border shadow-lg z-50">
-          <h4 className="font-bold mb-2">Switch Branch (Placeholder)</h4>
-          <p>Branch switching UI goes here.</p>
-          <button
-            className="mt-2 px-2 py-1 bg-default hover:bg-muted"
-            onClick={() => setIsBranchModalOpen(false)}
-          >
-            Close
-          </button>
-        </div>
-      )}
     </div>
   );
 }

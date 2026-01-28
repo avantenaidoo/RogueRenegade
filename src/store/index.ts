@@ -4,13 +4,12 @@ interface FileTab {
   path: string;
   content: string;
   branch?: string | null;
-  dirty?: boolean; // 🔴 REQUIRED FOR RED DOT
+  dirty: boolean;
 }
 
 interface EditorState {
   tabs: FileTab[];
   activeTabIndex: number;
-  dirtyFiles: string[];
 
   repoPath: string | null;
   setRepoPath: (path: string) => void;
@@ -19,6 +18,7 @@ interface EditorState {
   updateTab: (index: number, updates: Partial<FileTab>) => void;
   setActiveTab: (index: number) => void;
   closeTab: (index: number) => void;
+
   markDirty: (path: string) => void;
   markClean: (path: string) => void;
 }
@@ -26,7 +26,6 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabIndex: 0,
-  dirtyFiles: [],
 
   repoPath: null,
   setRepoPath: (path) => set({ repoPath: path }),
@@ -47,28 +46,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
-  updateTab: (index, updates) => {
+  updateTab: (index, updates) =>
     set(state => {
       const tabs = [...state.tabs];
       tabs[index] = { ...tabs[index], ...updates };
       return { tabs };
-    });
-  },
+    }),
 
   setActiveTab: index => set({ activeTabIndex: index }),
 
   closeTab: index =>
     set(state => {
       const tabs = [...state.tabs];
-      const closedTab = tabs.splice(index, 1)[0];
+      tabs.splice(index, 1);
 
       let newIndex = state.activeTabIndex;
       if (index < newIndex) newIndex -= 1;
       if (newIndex >= tabs.length) newIndex = tabs.length - 1;
 
-      const dirtyFiles = state.dirtyFiles.filter(f => f !== closedTab.path);
-
-      return { tabs, activeTabIndex: newIndex, dirtyFiles };
+      return { tabs, activeTabIndex: Math.max(newIndex, 0) };
     }),
 
   markDirty: (path) =>
@@ -76,7 +72,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       tabs: state.tabs.map(tab =>
         tab.path === path ? { ...tab, dirty: true } : tab
       ),
-      dirtyFiles: Array.from(new Set([...state.dirtyFiles, path])),
     })),
 
   markClean: (path) =>
@@ -84,6 +79,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       tabs: state.tabs.map(tab =>
         tab.path === path ? { ...tab, dirty: false } : tab
       ),
-      dirtyFiles: state.dirtyFiles.filter(f => f !== path),
     })),
 }));
