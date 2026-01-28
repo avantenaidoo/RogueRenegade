@@ -1,10 +1,15 @@
+import { useState } from "react";
+import { openFolder } from "../utils/openFolder";
+
 export default function TitleBar() {
+  const [openMenu, setOpenMenu] = useState<null | "file">(null);
+
   return (
     <div
       data-tauri-drag-region
       className="h-9 flex items-center justify-between
                  bg-muted text-default border-b border-default
-                 select-none"
+                 select-none relative"
     >
       {/* ───── Left: Logo + Menus ───── */}
       <div className="flex items-center gap-3 px-3">
@@ -22,17 +27,52 @@ export default function TitleBar() {
         </div>
 
         {/* Menu bar */}
-        <div className="flex items-center gap-3 text-xs">
-          {["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"].map(
-            (item) => (
+        <div className="flex items-center gap-3 text-xs relative">
+          {/* FILE */}
+          <button
+            className="px-1 rounded hover:bg-default/10"
+            onClick={() =>
+              setOpenMenu(openMenu === "file" ? null : "file")
+            }
+          >
+            File
+          </button>
+
+          {/* FILE DROPDOWN */}
+          {openMenu === "file" && (
+            <div
+              className="absolute top-6 left-0 z-50 w-40
+                         bg-muted border border-default shadow-lg"
+            >
               <button
-                key={item}
-                className="px-1 rounded hover:bg-default/10"
+                className="w-full text-left px-3 py-1 hover:bg-default/10"
+                onClick={() => {
+                  setOpenMenu(null);
+                  openFolder();
+                }}
               >
-                {item}
+                Open Folder…
               </button>
-            )
+            </div>
           )}
+
+          {/* OTHER MENUS — UNTOUCHED */}
+          {[
+            "Edit",
+            "Selection",
+            "View",
+            "Go",
+            "Run",
+            "Terminal",
+            "Help",
+          ].map((item) => (
+            <button
+              key={item}
+              className="px-1 rounded hover:bg-default/10"
+            >
+              {item}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -44,7 +84,7 @@ export default function TitleBar() {
         <span className="opacity-60">⌕</span>
       </div>
 
-      {/* ───── Right: Window controls (visual only for now) ───── */}
+      {/* ───── Right: Window controls ───── */}
       <div className="flex items-center">
         {["—", "▢", "✕"].map((icon, i) => (
           <button

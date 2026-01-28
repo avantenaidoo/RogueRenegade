@@ -1,7 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
-import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore } from "../store";
 
 type FileNode = {
@@ -19,12 +17,11 @@ const IGNORED_DIRS = new Set([
 ]);
 
 export default function FileExplorer() {
-  const [rootPath, setRootPath] = useState<string | null>(null);
   const [tree, setTree] = useState<FileNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  const repoPath = useEditorStore((s) => s.repoPath);
   const addTab = useEditorStore((s) => s.addTab);
-  const setRepoPath = useEditorStore((s) => s.setRepoPath);
 
   async function loadDir(dirPath: string): Promise<FileNode[]> {
     const entries = await readDir(dirPath);
@@ -43,22 +40,16 @@ export default function FileExplorer() {
       });
   }
 
-  async function pickRoot() {
-    const selected = await open({ directory: true });
-    if (!selected) return;
+  // 🔁 React to workspace changes ONLY
+  useEffect(() => {
+    if (!repoPath) return;
 
-    const root = selected.toString();
-
-    // 🔥 THIS FIXES THE FORBIDDEN PATH ERROR
-    await invoke("allow_workspace_dir", { path: root });
-
-    setRepoPath(root);
-    setRootPath(root);
-
-    const rootTree = await loadDir(root);
-    setTree(rootTree);
-    setExpanded(new Set([root]));
-  }
+    (async () => {
+      const rootTree = await loadDir(repoPath);
+      setTree(rootTree);
+      setExpanded(new Set([repoPath]));
+    })();
+  }, [repoPath]);
 
   async function toggleDir(node: FileNode) {
     const next = new Set(expanded);
@@ -116,19 +107,16 @@ export default function FileExplorer() {
 
   return (
     <div className="h-full w-full overflow-y-auto p-2">
-      {!rootPath && (
-        <button
-          className="underline text-blue-500"
-          onClick={pickRoot}
-        >
-          Open Folder
-        </button>
+      {!repoPath && (
+        <div className="text-xs text-muted italic">
+          No folder opened
+        </div>
       )}
 
-      {rootPath && (
+      {repoPath && (
         <>
           <div className="font-semibold mb-2">
-            📦 {rootPath.split("/").pop()}
+            📦 {repoPath.split("/").pop()}
           </div>
           {renderNodes(tree)}
         </>
