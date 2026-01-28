@@ -68,7 +68,8 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
   }, [activeTab]);
 
   return (
-    <div className="border-t border-default p-1 text-sm flex justify-between bg-muted text-default">
+    // <div className="border-t border-default p-1 text-sm flex justify-between bg-muted text-default">
+    <div className="h-full px-3 flex items-center text-xs bg-muted text-default border-t border-default">
       <div>
         Branch:{" "}
         <button

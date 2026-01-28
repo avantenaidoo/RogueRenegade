@@ -7,8 +7,11 @@ export default function InsightsPanel({ code }: { code: string }) {
     labels: ["Lines", "Functions", "Classes"],
     datasets: [{ label: "Code Metrics", data: [metrics.lines, metrics.functions, metrics.classes], backgroundColor: ["#f00","#0f0","#00f"] }]
   };
-  return <div style={{ padding: "10px", borderTop: "1px solid gray" }}>
+  return (
+  // <div style={{ padding: "10px", borderTop: "1px solid gray" }}>
+  <div className="h-full w-full flex items-center justify-center">
     <h4>Code Metrics</h4>
     <Bar data={data} />
-  </div>;
+  </div>
+  );
 }

@@ -1,4 +1,5 @@
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter};
+use tauri_plugin_fs::FsExt; // 🔥 REQUIRED FOR fs_scope()
 use std::fs;
 use git2::{Repository, StatusOptions};
 
@@ -21,6 +22,17 @@ fn read_file(path: String) -> Result<String, String> {
 #[tauri::command]
 fn write_file(path: String, contents: String) -> Result<(), String> {
     fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
+// 🔥 RUNTIME FS SCOPE EXTENSION (THIS IS THE KEY)
+#[tauri::command]
+fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
+    app.fs_scope()
+        .allow_directory(&path, true)
+        .map_err(|e| e.to_string())?;
+
+    println!("✅ FS access granted for {}", path);
+    Ok(())
 }
 
 // ---------------------------
@@ -56,7 +68,7 @@ fn get_current_branch(repo_path: String) -> Result<String, String> {
             .shorthand()
             .unwrap_or("DETACHED")
             .to_string(),
-        Err(_) => "NO_COMMITS".to_string(), // empty repo
+        Err(_) => "NO_COMMITS".to_string(),
     };
 
     Ok(branch)
@@ -68,8 +80,7 @@ fn stage_and_commit(
     file_path: String,
     message: String,
 ) -> Result<(), String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| e.to_string())?;
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
 
     let mut index = repo.index().map_err(|e| e.to_string())?;
     index
@@ -101,7 +112,6 @@ fn stage_and_commit(
             .map_err(|e| e.to_string())?;
         }
         None => {
-            // first commit
             repo.commit(
                 Some("HEAD"),
                 &sig,
@@ -118,7 +128,7 @@ fn stage_and_commit(
 }
 
 // ---------------------------
-// RUN FUNCTION (ENTRYPOINT)
+// RUN FUNCTION
 // ---------------------------
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -130,6 +140,7 @@ pub fn run() {
             greet,
             read_file,
             write_file,
+            allow_workspace_dir,
             get_uncommitted_files,
             get_current_branch,
             stage_and_commit

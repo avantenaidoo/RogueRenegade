@@ -15,17 +15,22 @@ import ZenModeWrapper from "../components/ZenModeWrapper";
 import { saveFile } from "../utils/fs";
 import { onSave } from "../utils/workflow";
 import { initCollaboration } from "../utils/collaboration";
-
-import "../App.css";
+import { Canvas } from "@/components/Canvas";
 
 export default function Workspace() {
-  const { tabs, activeTabIndex, updateTab, setActiveTab, closeTab } =
-    useEditorStore();
-  const markClean = useEditorStore((state) => state.markClean);
+  const {
+    tabs,
+    activeTabIndex,
+    updateTab,
+    setActiveTab,
+    closeTab,
+    markClean
+  } = useEditorStore();
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
+  const [panelOpen, setPanelOpen] = useState(false); // ✅ VS CODE PANEL
 
   const activeTab = tabs[activeTabIndex];
 
@@ -34,113 +39,104 @@ export default function Workspace() {
   }, []);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-      setTheme("vs-dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      setTheme("vs-light");
-    }
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    setTheme(isDarkMode ? "vs-dark" : "vs-light");
   }, [isDarkMode]);
 
   return (
-    <div className="flex flex-col h-screen bg-default text-default dark:bg-muted dark:text-default">
-      <div className="flex flex-1">
-        <FileExplorer />
+    // <div className="flex h-screen w-screen overflow-hidden">
+    // <div>
 
-        <ZenModeWrapper>
-          <div className="flex-1 flex flex-col pt-15">
-            {/* Tabs */}
-            <div className="flex border-b border-default">
-              {tabs.map((t, i) => {
-                const isDirty = dirtyFiles.includes(t.path);
-                return (
-                  <div
-                    key={t.path}
-                    className={`px-2 py-1 cursor-pointer flex items-center gap-2 ${
-                      i === activeTabIndex
-                        ? "bg-muted text-default"
-                        : "bg-default text-muted hover:bg-muted"
-                    }`}
-                    onClick={() => setActiveTab(i)}
-                  >
-                    <span
-                      className={`font-semibold ${
-                        isDirty ? "text-red-500" : ""
-                      }`}
-                    >
-                      {t.path.split("/").pop()}
-                    </span>
+    //   <FileExplorer />
 
-                    {t.branch && (
-                      <span className="text-xs px-1 rounded bg-muted">
-                        {t.branch}
-                      </span>
-                    )}
+    //   <ZenModeWrapper>
+    //     {/* <div className="flex flex-col flex-1 min-w-0"> */}
+    //     <div>
 
-                    <button
-                      className="ml-2 text-red-500"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeTab(i);
-                      }}
-                    >
-                      x
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+    //       {/* TABS */}
+    //       {/* <div className="flex border-b shrink-0"> */}
+    //       <div>
+    //         {tabs.map((t, i) => (
+    //           <div
+    //             key={t.path}
+    //             onClick={() => setActiveTab(i)}
+    //             className={`px-3 py-1 cursor-pointer ${
+    //               i === activeTabIndex ? "bg-muted" : ""
+    //             }`}
+    //           >
+    //             {t.path.split("/").pop()}
+    //             <button
+    //               className="ml-2 text-red-500"
+    //               onClick={(e) => {
+    //                 e.stopPropagation();
+    //                 closeTab(i);
+    //               }}
+    //             >
+    //               ×
+    //             </button>
+    //           </div>
+    //         ))}
+    //       </div>
 
-            {/* Editor */}
-            {activeTab && (
-              <div className="flex-1 min-h-0">
-              <Editor
-                value={activeTab.content}
-                path={activeTab.path}
-                theme={theme}
-                onChange={(val) => {
-                  if (val !== undefined) {
-                    updateTab(activeTabIndex, { content: val });
-                  }
-                }}
-              />
-              </div>
-            )}
+    //       {/* EDITOR — ALWAYS FULL HEIGHT */}
+    //       {/* <div className="flex-1 min-h-0"> */}
+    //       <div>
+    //         {activeTab && (
+    //           <Editor
+    //             value={activeTab.content}
+    //             path={activeTab.path}
+    //             theme={theme}
+    //             onChange={(val) => {
+    //               if (val !== undefined) {
+    //                 updateTab(activeTabIndex, { content: val });
+    //               }
+    //             }}
+    //           />
+    //         )}
+    //       </div>
 
-            {/* Save */}
-            <button
-              className="mt-2 px-4 py-2 border rounded bg-default dark:bg-muted"
-              onClick={async () => {
-                if (!activeTab) return;
+    //       {/* PANEL TOGGLE BAR (LIKE VS CODE) */}
+    //       {/* <div className="border-t flex items-center gap-2 px-2 py-1 shrink-0"> */}
+    //       <div>
+    //         <button onClick={() => setPanelOpen(!panelOpen)}>
+    //           {panelOpen ? "Hide Panel" : "Show Panel"}
+    //         </button>
+    //         <button
+    //           onClick={async () => {
+    //             if (!activeTab) return;
+    //             saveFile(activeTab.path, activeTab.content);
+    //             markClean(activeTab.path);
+    //             await onSave(
+    //               activeTab.path.split("/").slice(0, -1).join("/"),
+    //               activeTab.path,
+    //               activeTab.content
+    //             );
+    //           }}
+    //         >
+    //           Save
+    //         </button>
+    //       </div>
 
-                saveFile(activeTab.path, activeTab.content);
-                markClean(activeTab.path);
-                const repoPath = activeTab.path
-                .split("/")
-                .slice(0, -1)
-                .join("/");
+    //       {/* BOTTOM PANEL — CONDITIONAL */}
+    //       {panelOpen && (
+    //         // <div className="h-64 border-t overflow-y-auto shrink-0">
+    //         <div>
+    //           <GitStatus onDirtyFilesChange={setDirtyFiles} />
+    //           <GitPanel />
+    //           <CollaborationPanel username="User" roomId="workspace1" />
+    //           <InsightsPanel code={activeTab?.content || ""} />
+    //           <SettingsPanel
+    //             theme={theme}
+    //             setTheme={(t) => setIsDarkMode(t === "vs-dark")}
+    //           />
+    //         </div>
+    //       )}
+    //     </div>
+    //   </ZenModeWrapper>
 
-await onSave(repoPath, activeTab.path, activeTab.content);
+    //   <StatusBar />
+    // </div>
 
-              }}
-            >
-              Save
-            </button>
-
-            <GitStatus onDirtyFilesChange={setDirtyFiles} />
-            <GitPanel />
-            <CollaborationPanel username="User" roomId="workspace1" />
-            <InsightsPanel code={activeTab?.content || ""} />
-            <SettingsPanel
-              theme={theme}
-              setTheme={(t) => setIsDarkMode(t === "vs-dark")}
-            />
-          </div>
-        </ZenModeWrapper>
-      </div>
-
-      <StatusBar />
-    </div>
+    <Canvas />
   );
 }

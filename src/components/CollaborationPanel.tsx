@@ -25,7 +25,8 @@ export default function CollaborationPanel({
   }, [username, roomId]);
 
   return (
-    <div style={{ borderTop: "1px solid gray", padding: "5px" }}>
+    // <div style={{ borderTop: "1px solid gray", padding: "5px" }}>
+    <div className="h-full w-full flex items-center justify-center">
       <h4>Live Collaboration</h4>
       <ul>
         {users.map((u) => (

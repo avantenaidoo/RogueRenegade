@@ -7,7 +7,8 @@ export default function SettingsPanel({ theme, setTheme }: SettingsProps) {
   const isDark = theme === "vs-dark";
 
   return (
-    <div className="border-t border-(--border) dark:border-(--border-dark) p-2 flex flex-col gap-2 bg-(--bg-main) dark:bg-(--bg-main-dark)">
+    // <div className="border-t border-(--border) dark:border-(--border-dark) p-2 flex flex-col gap-2 bg-(--bg-main) dark:bg-(--bg-main-dark)">
+    <div className="h-full w-full flex items-center justify-center border-t border-(--border) dark:border-(--border-dark) bg-(--bg-main) dark:bg-(--bg-main-dark)">
       <h4 className="text-(--text-main) dark:text-(--text-main-dark) font-semibold">Settings</h4>
 
       <div className="flex items-center gap-2 text-(--text-main) dark:text-(--text-main-dark)">

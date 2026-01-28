@@ -1,5 +1,5 @@
 import MonacoEditor from "@monaco-editor/react";
-import { onChange as workflowOnChange } from "../utils/workflow"; // ✅ STEP 7
+import { onChange as workflowOnChange } from "../utils/workflow";
 
 interface EditorProps {
   value: string;
@@ -15,23 +15,33 @@ export default function Editor({
   path,
 }: EditorProps) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-black">
-      <MonacoEditor
-        height="100%"
-        language="javascript"
-        value={value}
-        theme={theme}
-        onChange={(val) => {
-          onChange(val);
+    <div className="w-full h-full flex flex-col overflow-hidden">
+      {/* -------- EDITOR -------- */}
+      <div className="flex-1 min-h-0">
+        <MonacoEditor
+          height="100%"
+          language="javascript"
+          value={value}
+          theme={theme}
+          onChange={(val) => {
+            onChange(val);
 
-          if (val !== undefined) {
-            // ✅ STEP 7: workflow automation
-            workflowOnChange(path, val);
-          }
-        }}
-        options={{ automaticLayout: true }}
-      />
-      <div className="text-xs px-1 py-0.5 bg-white dark:bg-black">
+            if (val !== undefined) {
+              workflowOnChange(path, val);
+            }
+          }}
+          options={{
+            automaticLayout: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+          }}
+        />
+      </div>
+
+      {/* -------- PATH BAR (BOTTOM, NOT SIDE) -------- */}
+      <div className="h-5 shrink-0 px-2 text-xs flex items-center
+                      bg-neutral-900 text-neutral-400 border-t border-neutral-800
+                      truncate">
         {path}
       </div>
     </div>

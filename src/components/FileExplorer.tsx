@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore } from "../store";
 
 type FileNode = {
@@ -25,41 +26,31 @@ export default function FileExplorer() {
   const addTab = useEditorStore((s) => s.addTab);
   const setRepoPath = useEditorStore((s) => s.setRepoPath);
 
-  // ---------- LOAD DIRECTORY ----------
   async function loadDir(dirPath: string): Promise<FileNode[]> {
     const entries = await readDir(dirPath);
 
-    const nodes: FileNode[] = [];
-
-    for (const entry of entries) {
-      if (!entry.name || IGNORED_DIRS.has(entry.name)) continue;
-
-      const fullPath = `${dirPath}/${entry.name}`;
-
-      nodes.push({
-        name: entry.name,
-        path: fullPath,
-        isDirectory: entry.isDirectory,
+    return entries
+      .filter((e) => e.name && !IGNORED_DIRS.has(e.name))
+      .map((e) => ({
+        name: e.name!,
+        path: `${dirPath}/${e.name}`,
+        isDirectory: e.isDirectory,
+      }))
+      .sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
       });
-    }
-
-    return nodes.sort((a, b) => {
-      if (a.isDirectory && !b.isDirectory) return -1;
-      if (!a.isDirectory && b.isDirectory) return 1;
-      return a.name.localeCompare(b.name);
-    });
   }
 
-  // ---------- PICK ROOT ----------
   async function pickRoot() {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-    });
-
+    const selected = await open({ directory: true });
     if (!selected) return;
 
     const root = selected.toString();
+
+    // 🔥 THIS FIXES THE FORBIDDEN PATH ERROR
+    await invoke("allow_workspace_dir", { path: root });
 
     setRepoPath(root);
     setRootPath(root);
@@ -69,7 +60,6 @@ export default function FileExplorer() {
     setExpanded(new Set([root]));
   }
 
-  // ---------- TOGGLE FOLDER ----------
   async function toggleDir(node: FileNode) {
     const next = new Set(expanded);
 
@@ -88,7 +78,6 @@ export default function FileExplorer() {
     }
   }
 
-  // ---------- OPEN FILE ----------
   async function openFile(node: FileNode) {
     if (node.isDirectory) {
       await toggleDir(node);
@@ -99,7 +88,6 @@ export default function FileExplorer() {
     addTab(node.path, content);
   }
 
-  // ---------- RENDER TREE ----------
   function renderNodes(nodes: FileNode[], depth = 0) {
     return nodes.map((node) => (
       <div key={node.path}>
@@ -127,10 +115,10 @@ export default function FileExplorer() {
   }
 
   return (
-    <div className="w-60 border-r p-2 overflow-auto">
+    <div className="h-full w-full overflow-y-auto p-2">
       {!rootPath && (
         <button
-          className="mb-2 underline text-blue-500"
+          className="underline text-blue-500"
           onClick={pickRoot}
         >
           Open Folder
@@ -139,7 +127,9 @@ export default function FileExplorer() {
 
       {rootPath && (
         <>
-          <div className="font-semibold mb-1">📦 {rootPath.split("/").pop()}</div>
+          <div className="font-semibold mb-2">
+            📦 {rootPath.split("/").pop()}
+          </div>
           {renderNodes(tree)}
         </>
       )}

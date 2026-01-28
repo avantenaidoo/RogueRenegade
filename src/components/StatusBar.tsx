@@ -50,7 +50,8 @@ export default function StatusBar() {
   }, [activeTab]);
 
   return (
-    <div className="h-6 px-2 flex items-center justify-between text-xs bg-muted border-t border-default">
+    // <div className="h-6 px-2 flex items-center justify-between text-xs bg-muted border-t border-default">
+    <div className="flex-1 px-3 flex items-center justify-end text-xs bg-muted border-t border-default">
       <div>
         {branch ? `Branch: ${branch}` : "Not a Git repository"}
       </div>

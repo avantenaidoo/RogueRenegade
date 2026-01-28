@@ -21,7 +21,8 @@ export default function ZenModeWrapper({ children }: { children: React.ReactNode
 
   return (
     <ZenModeContext.Provider value={{ zen, toggleZen }}>
-      <div style={{ height: "100%", position: "relative" }}>
+      {/* <div style={{ height: "100%", position: "relative" }}> */}
+      <div className="h-full w-full bg-black">
         {/* Toggle button */}
         <button
           onClick={toggleZen}

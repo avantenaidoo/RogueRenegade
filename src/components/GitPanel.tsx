@@ -85,11 +85,12 @@ export default function GitPanel() {
   }, []);
 
   return (
-    <div
-      id="git-panel-container"
-      className="border-t border-(--border) dark:border-(--border-dark)
-                 p-2 max-h-40 overflow-y-auto flex flex-col gap-1"
-    >
+    // <div
+    //   id="git-panel-container"
+    //   className="border-t border-(--border) dark:border-(--border-dark)
+    //              p-2 max-h-40 overflow-y-auto flex flex-col gap-1"
+    // >
+    <div className="h-full w-full flex items-center justify-center border-t border-(--border) dark:border-(--border-dark)">
       <input
         className="px-2 py-0.5 text-sm border border-(--border) dark:border-(--border-dark)
                    rounded bg-(--bg-main) dark:bg-(--bg-main-dark)
