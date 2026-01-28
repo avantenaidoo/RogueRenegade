@@ -3,16 +3,17 @@ import { exists } from "@tauri-apps/plugin-fs";
 import { getCurrentBranch, getUncommittedFiles } from "../utils/git";
 import { useEditorStore } from "../store";
 
-interface GitStatusProps {
-  onDirtyFilesChange?: (files: string[]) => void;
-}
+export default function GitStatus() {
+  const {
+    tabs,
+    activeTabIndex,
+    dirtyFiles: editorDirtyFiles,
+  } = useEditorStore();
 
-export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
-  const { tabs, activeTabIndex } = useEditorStore();
   const activeTab = tabs[activeTabIndex];
 
   const [branch, setBranch] = useState<string | null>(null);
-  const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
+  const [gitDirtyFiles, setGitDirtyFiles] = useState<string[]>([]);
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
 
   function getRepoPath(filePath: string) {
@@ -30,19 +31,16 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
   async function updateStatus() {
     if (!activeTab) {
       setBranch(null);
-      setDirtyFiles([]);
-      onDirtyFilesChange?.([]);
+      setGitDirtyFiles([]);
       return;
     }
 
     const repoPath = getRepoPath(activeTab.path);
 
-    // ✅ HARD GUARD — NO GIT, NO STATUS
     const hasGit = await isGitRepo(repoPath);
     if (!hasGit) {
       setBranch(null);
-      setDirtyFiles([]);
-      onDirtyFilesChange?.([]);
+      setGitDirtyFiles([]);
       return;
     }
 
@@ -51,13 +49,11 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
       const uncommitted = await getUncommittedFiles(repoPath);
 
       setBranch(currentBranch);
-      setDirtyFiles(uncommitted);
-      onDirtyFilesChange?.(uncommitted);
+      setGitDirtyFiles(uncommitted);
     } catch (err) {
       console.error("Git status update failed:", err);
       setBranch(null);
-      setDirtyFiles([]);
-      onDirtyFilesChange?.([]);
+      setGitDirtyFiles([]);
     }
   }
 
@@ -67,9 +63,30 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
     return () => clearInterval(interval);
   }, [activeTab]);
 
+  // ─────────────────────────────────────────────
+  // 🔴 DIRTY STATE MERGE (VS CODE STYLE)
+  // ─────────────────────────────────────────────
+  const editorSet = new Set(editorDirtyFiles);
+  const gitSet = new Set(gitDirtyFiles);
+
+  const allDirtyFiles = Array.from(
+    new Set([...editorDirtyFiles, ...gitDirtyFiles])
+  );
+
+  const isDirty = allDirtyFiles.length > 0;
+
+  function fileLabel(file: string) {
+    const name = file.split("/").pop();
+    if (editorSet.has(file) && gitSet.has(file)) return `${name} (unsaved + git)`;
+    if (editorSet.has(file)) return `${name} (unsaved)`;
+    return `${name} (git)`;
+  }
+
   return (
-    // <div className="border-t border-default p-1 text-sm flex justify-between bg-muted text-default">
-    <div className="h-full px-3 flex items-center text-xs bg-muted text-default border-t border-default">
+    <div className="h-full px-3 flex items-center gap-3 text-xs bg-muted text-default border-t border-default">
+      {/* 🔴 GLOBAL DIRTY DOT */}
+      {isDirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
+
       <div>
         Branch:{" "}
         <button
@@ -81,10 +98,14 @@ export default function GitStatus({ onDirtyFilesChange }: GitStatusProps) {
         </button>
       </div>
 
-      <div>
-        {dirtyFiles.length > 0
-          ? `Uncommitted: ${dirtyFiles.join(", ")}`
-          : "Clean"}
+      <div className="truncate max-w-[60%]">
+        {isDirty ? (
+          <span className="text-red-400">
+            {allDirtyFiles.map(fileLabel).join(", ")}
+          </span>
+        ) : (
+          "Clean"
+        )}
       </div>
 
       {isBranchModalOpen && (

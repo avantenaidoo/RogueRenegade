@@ -4,6 +4,7 @@ interface FileTab {
   path: string;
   content: string;
   branch?: string | null;
+  dirty?: boolean; // 🔴 REQUIRED FOR RED DOT
 }
 
 interface EditorState {
@@ -11,7 +12,6 @@ interface EditorState {
   activeTabIndex: number;
   dirtyFiles: string[];
 
-  // 🔴 NEW
   repoPath: string | null;
   setRepoPath: (path: string) => void;
 
@@ -28,11 +28,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeTabIndex: 0,
   dirtyFiles: [],
 
-  // 🔴 NEW
   repoPath: null,
   setRepoPath: (path) => set({ repoPath: path }),
 
-  // ✅ NO ASYNC, NO GIT CALLS
   addTab: (path, content) => {
     const existingIndex = get().tabs.findIndex(t => t.path === path);
     if (existingIndex >= 0) {
@@ -41,7 +39,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     set(state => ({
-      tabs: [...state.tabs, { path, content, branch: null }],
+      tabs: [
+        ...state.tabs,
+        { path, content, branch: null, dirty: false },
+      ],
       activeTabIndex: state.tabs.length,
     }));
   },
@@ -50,13 +51,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set(state => {
       const tabs = [...state.tabs];
       tabs[index] = { ...tabs[index], ...updates };
-
-      if (updates.content !== undefined) {
-        const dirtyFiles = new Set(state.dirtyFiles);
-        dirtyFiles.add(tabs[index].path);
-        return { tabs, dirtyFiles: Array.from(dirtyFiles) };
-      }
-
       return { tabs };
     });
   },
@@ -79,11 +73,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   markDirty: (path) =>
     set(state => ({
+      tabs: state.tabs.map(tab =>
+        tab.path === path ? { ...tab, dirty: true } : tab
+      ),
       dirtyFiles: Array.from(new Set([...state.dirtyFiles, path])),
     })),
 
   markClean: (path) =>
     set(state => ({
+      tabs: state.tabs.map(tab =>
+        tab.path === path ? { ...tab, dirty: false } : tab
+      ),
       dirtyFiles: state.dirtyFiles.filter(f => f !== path),
     })),
 }));
