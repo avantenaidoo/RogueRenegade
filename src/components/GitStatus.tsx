@@ -11,8 +11,12 @@ export default function GitStatus() {
   const [branch, setBranch] = useState<string | null>(null);
   const [gitDirtyFiles, setGitDirtyFiles] = useState<string[]>([]);
 
-  function getRepoPath(filePath: string) {
-    return filePath.split("/").slice(0, -1).join("/");
+  function dirname(path: string) {
+    return path.split("/").slice(0, -1).join("/");
+  }
+
+  function basename(path: string) {
+    return path.split("/").pop() ?? path;
   }
 
   async function isGitRepo(path: string) {
@@ -30,7 +34,7 @@ export default function GitStatus() {
       return;
     }
 
-    const repoPath = getRepoPath(activeTab.path);
+    const repoPath = dirname(activeTab.path);
 
     if (!(await isGitRepo(repoPath))) {
       setBranch(null);
@@ -53,20 +57,19 @@ export default function GitStatus() {
     return () => clearInterval(id);
   }, [activeTab]);
 
-  /* ───────────── DIRTY MERGE (VS CODE LOGIC) ───────────── */
+  /* ───────────── DIRTY MERGE (VS CODE STYLE) ───────────── */
 
-  const editorDirtyFiles = tabs
-    .filter(t => t.dirty)
-    .map(t => t.path);
+  const editorDirty = tabs.filter(t => t.dirty).map(t => t.path);
 
-  const allDirtyFiles = Array.from(
-    new Set([...editorDirtyFiles, ...gitDirtyFiles])
+  const allDirty = Array.from(
+    new Set([...editorDirty, ...gitDirtyFiles])
   );
 
-  function label(file: string) {
-    const name = file.split("/").pop();
-    const editor = editorDirtyFiles.includes(file);
-    const git = gitDirtyFiles.includes(file);
+  function label(filePath: string) {
+    const name = basename(filePath);
+
+    const editor = editorDirty.some(p => basename(p) === name);
+    const git = gitDirtyFiles.some(p => basename(p) === name);
 
     if (editor && git) return `${name} (unsaved + git)`;
     if (editor) return `${name} (unsaved)`;
@@ -76,18 +79,21 @@ export default function GitStatus() {
   return (
     <div className="h-full px-3 flex items-center gap-3 text-xs bg-muted text-default border-t border-default">
       {/* GLOBAL DIRTY DOT */}
-      {allDirtyFiles.length > 0 && (
+      {allDirty.length > 0 && (
         <span className="w-2 h-2 rounded-full bg-red-500" />
       )}
 
       <div>
-        Branch: <span className="font-semibold">{branch ?? "No Git repo"}</span>
+        Branch:{" "}
+        <span className="font-semibold">
+          {branch ?? "No Git repo"}
+        </span>
       </div>
 
       <div className="truncate max-w-[60%]">
-        {allDirtyFiles.length > 0 ? (
+        {allDirty.length > 0 ? (
           <span className="text-red-400">
-            {allDirtyFiles.map(label).join(", ")}
+            {allDirty.map(label).join(", ")}
           </span>
         ) : (
           "Clean"
