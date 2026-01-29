@@ -26,10 +26,16 @@ interface EditorState {
 
   /* ───── RECENTS ───── */
   recentFolders: string[];
+  recentFiles: string[];
+
   addRecentFolder: (path: string) => void;
+  addRecentFile: (path: string) => void;  
+  removeRecentFolder: (path: string) => void;
+  removeRecentFile: (path: string) => void;
 }
 
-const RECENTS_KEY = "rride:recent-folders";
+const RECENT_FOLDERS_KEY = "rride:recent-folders";
+const RECENT_FILES_KEY = "rride:recent-files";
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   /* ───── EDITOR STATE ───── */
@@ -92,7 +98,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setRepoPath: (path) => set({ repoPath: path }),
 
   /* ───── RECENTS ───── */
-  recentFolders: JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]"),
+  recentFolders: JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY) || "[]"),
+  recentFiles: JSON.parse(localStorage.getItem(RECENT_FILES_KEY) || "[]"),
 
   addRecentFolder: (path) => {
     const current = get().recentFolders;
@@ -100,9 +107,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = [
       path,
       ...current.filter(p => p !== path),
-    ].slice(0, 10); // keep last 10 like VS Code
+    ].slice(0, 10);
 
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+    localStorage.setItem(RECENT_FOLDERS_KEY, JSON.stringify(next));
     set({ recentFolders: next });
   },
+
+  addRecentFile: (path) => {
+    const current = get().recentFiles;
+
+    const next = [
+      path,
+      ...current.filter(p => p !== path),
+    ].slice(0, 15);
+
+    localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next));
+    set({ recentFiles: next });
+  },
+
+  removeRecentFolder: (path) => {
+  const next = get().recentFolders.filter(p => p !== path);
+  localStorage.setItem(RECENT_FOLDERS_KEY, JSON.stringify(next));
+  set({ recentFolders: next });
+},
+
+removeRecentFile: (path) => {
+  const next = get().recentFiles.filter(p => p !== path);
+  localStorage.setItem(RECENT_FILES_KEY, JSON.stringify(next));
+  set({ recentFiles: next });
+},
+
 }));
+
+export const selectValidRecentFiles = (state: any) =>
+  state.recentFiles.filter(
+    (p: string) =>
+      p &&
+      p !== "untitled" &&
+      typeof p === "string"
+  );
+

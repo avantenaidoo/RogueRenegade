@@ -1,19 +1,21 @@
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_fs::FsExt; // 🔥 REQUIRED FOR fs_scope()
+use tauri_plugin_fs::FsExt;
 use std::fs;
 use git2::{Repository, StatusOptions};
 
-// ---------------------------
-// GREET COMMAND
-// ---------------------------
+mod menu;
+
+/* ─────────────────────────────
+   GREET COMMAND
+   ───────────────────────────── */
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-// ---------------------------
-// FS COMMANDS
-// ---------------------------
+/* ─────────────────────────────
+   FS COMMANDS
+   ───────────────────────────── */
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -24,7 +26,6 @@ fn write_file(path: String, contents: String) -> Result<(), String> {
     fs::write(&path, contents).map_err(|e| e.to_string())
 }
 
-// 🔥 RUNTIME FS SCOPE EXTENSION (THIS IS THE KEY)
 #[tauri::command]
 fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
     app.fs_scope()
@@ -35,9 +36,9 @@ fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
     Ok(())
 }
 
-// ---------------------------
-// GIT COMMANDS
-// ---------------------------
+/* ─────────────────────────────
+   GIT COMMANDS
+   ───────────────────────────── */
 #[tauri::command]
 fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
     let repo = Repository::open(repo_path)
@@ -50,12 +51,14 @@ fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
 
     let statuses = repo
         .statuses(Some(&mut opts))
-        .map_err(|e| format!("Failed to get statuses: {}", e))?;
+        .map_err(|e| e.to_string())?;
 
-    Ok(statuses
+    let files = statuses
         .iter()
-        .filter_map(|e| e.path().map(|p| p.to_string()))
-        .collect())
+        .filter_map(|e| e.path().map(String::from))
+        .collect();
+
+    Ok(files)
 }
 
 #[tauri::command]
@@ -64,10 +67,7 @@ fn get_current_branch(repo_path: String) -> Result<String, String> {
         .map_err(|e| format!("Failed to open repo: {}", e))?;
 
     let branch = match repo.head() {
-        Ok(head) => head
-            .shorthand()
-            .unwrap_or("DETACHED")
-            .to_string(),
+        Ok(head) => head.shorthand().unwrap_or("DETACHED").to_string(),
         Err(_) => "NO_COMMITS".to_string(),
     };
 
@@ -90,46 +90,73 @@ fn stage_and_commit(
 
     let tree_id = index.write_tree().map_err(|e| e.to_string())?;
     let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
-
     let sig = repo.signature().map_err(|e| e.to_string())?;
 
-    let parent_commit = repo
+    let parent = repo
         .head()
         .ok()
         .and_then(|h| h.target())
         .and_then(|id| repo.find_commit(id).ok());
 
-    match parent_commit {
-        Some(parent) => {
-            repo.commit(
-                Some("HEAD"),
-                &sig,
-                &sig,
-                &message,
-                &tree,
-                &[&parent],
-            )
-            .map_err(|e| e.to_string())?;
+    match parent {
+        Some(p) => {
+            repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[&p])
+                .map_err(|e| e.to_string())?;
         }
         None => {
-            repo.commit(
-                Some("HEAD"),
-                &sig,
-                &sig,
-                &message,
-                &tree,
-                &[],
-            )
-            .map_err(|e| e.to_string())?;
+            repo.commit(Some("HEAD"), &sig, &sig, &message, &tree, &[])
+                .map_err(|e| e.to_string())?;
         }
     }
 
     Ok(())
 }
 
-// ---------------------------
-// RUN FUNCTION
-// ---------------------------
+/* ─────────────────────────────
+   RECENT FOLDERS (HTML MENU SUPPORT)
+   ───────────────────────────── */
+#[tauri::command]
+fn add_recent_folder(app: AppHandle, path: String) {
+    menu::add_recent(path);
+    let m = menu::build_menu(&app);
+    app.set_menu(m).unwrap();
+}
+
+/* ─────────────────────────────
+   OPEN RECENT (HTML TITLEBAR)
+   ───────────────────────────── */
+#[tauri::command]
+fn open_recent(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/* ─────────────────────────────
+   RUN
+   ───────────────────────────── */
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -143,12 +170,24 @@ pub fn run() {
             allow_workspace_dir,
             get_uncommitted_files,
             get_current_branch,
-            stage_and_commit
+            stage_and_commit,
+            add_recent_folder,
+            open_recent
         ])
         .setup(|app| {
+            let menu = menu::build_menu(&app.handle());
+            app.set_menu(menu).unwrap();
+
             println!("🟢 Tauri app setup complete!");
             app.handle().emit("app-ready", ()).unwrap();
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+
+            if let Some(path) = id.strip_prefix("open_recent:") {
+                app.emit("open-recent", path.to_string()).unwrap();
+            }
         })
         .run(tauri::generate_context!())
         .expect("❌ Error while running Tauri application");
