@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
+import { listen } from "@tauri-apps/api/event";
 import { useEditorStore } from "../store";
 
 type FileNode = {
@@ -40,15 +41,28 @@ export default function FileExplorer() {
       });
   }
 
-  // 🔁 React to workspace changes ONLY
-  useEffect(() => {
+  async function reloadTree() {
     if (!repoPath) return;
+    const rootTree = await loadDir(repoPath);
+    setTree(rootTree);
+    setExpanded(new Set([repoPath]));
+  }
 
-    (async () => {
-      const rootTree = await loadDir(repoPath);
-      setTree(rootTree);
-      setExpanded(new Set([repoPath]));
-    })();
+  // Initial load
+  useEffect(() => {
+    reloadTree();
+  }, [repoPath]);
+
+  // 🔥🔥🔥 LISTEN FOR SAVE EVENTS 🔥🔥🔥
+  useEffect(() => {
+    const unlisten = listen("fs-refresh", () => {
+      console.log("🔄 FS refresh received");
+      reloadTree();
+    });
+
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, [repoPath]);
 
   async function toggleDir(node: FileNode) {

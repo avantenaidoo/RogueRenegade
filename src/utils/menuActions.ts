@@ -24,17 +24,15 @@ export async function runMenuAction(action?: string) {
        OPEN FILE
        ───────────────────────────── */
     case "openFile": {
-    const file = await open({ multiple: false });
-    if (!file) return;
+      const file = await open({ multiple: false });
+      if (!file) return;
 
-    const contents = await invoke<string>("read_file", { path: file });
+      const contents = await invoke<string>("read_file", { path: file });
 
-    store.addRecentFile(file as string);
-    store.addTab(file as string, contents);
-
-    break;
+      store.addTab(file as string, contents);
+      store.addRecentFile(file as string);
+      break;
     }
-
 
     /* ─────────────────────────────
        OPEN FOLDER
@@ -55,31 +53,42 @@ export async function runMenuAction(action?: string) {
     case "save": {
       if (!activeTab) return;
 
-      let path = activeTab.path;
-
-      // UNTITLED → FORCE SAVE AS
-      if (path === "untitled") {
+      // 🔥 UNTITLED FILE → FORCE SAVE AS
+      if (activeTab.path === "untitled") {
         const newPath = await save();
         if (!newPath) return;
 
-        path = newPath;
+        // ⚠️ MUST UPDATE TAB FIRST
+        store.updateTab(activeIndex, {
+          path: newPath,
+          dirty: false,
+        });
 
-        store.updateTab(activeIndex, { path });
+        await invoke("write_file", {
+          path: newPath,
+          contents: activeTab.content,
+        });
+
+        store.addRecentFile(newPath);
+        break;
       }
 
+      // NORMAL SAVE
       await invoke("write_file", {
-        path,
-        contents: activeTab.content
+        path: activeTab.path,
+        contents: activeTab.content,
       });
 
-      store.markClean(path);
+      store.markClean(activeTab.path);
+      store.addRecentFile(activeTab.path);
       break;
     }
 
     /* ─────────────────────────────
        SAVE AS
        ───────────────────────────── */
-    case "saveAs": {
+    case "saveAs":
+    case "save_as": {
       if (!activeTab) return;
 
       const newPath = await save();
@@ -87,11 +96,15 @@ export async function runMenuAction(action?: string) {
 
       await invoke("write_file", {
         path: newPath,
-        contents: activeTab.content
+        contents: activeTab.content,
       });
 
-      store.updateTab(activeIndex, { path: newPath });
-      store.markClean(newPath);
+      store.updateTab(activeIndex, {
+        path: newPath,
+        dirty: false,
+      });
+
+      store.addRecentFile(newPath);
       break;
     }
 

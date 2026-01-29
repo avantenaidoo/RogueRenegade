@@ -49,7 +49,7 @@ pub fn build_menu<R: tauri::Runtime>(app: &AppHandle<R>) -> Menu<R> {
     )
     .unwrap();
 
-    /* ───────────── FILE MENU ───────────── */
+    /* ───────────── FILE MENU ITEMS ───────────── */
     let open_file = MenuItem::with_id(
         app,
         "open_file",
@@ -68,6 +68,25 @@ pub fn build_menu<R: tauri::Runtime>(app: &AppHandle<R>) -> Menu<R> {
     )
     .unwrap();
 
+    let save = MenuItem::with_id(
+        app,
+        "save",
+        "Save",
+        true,
+        None::<&str>,
+    )
+    .unwrap();
+
+    let save_as = MenuItem::with_id(
+        app,
+        "save_as",
+        "Save As…",
+        true,
+        None::<&str>,
+    )
+    .unwrap();
+
+    /* ───────────── FILE MENU ───────────── */
     let file_menu = Submenu::with_items(
         app,
         "File",
@@ -75,6 +94,8 @@ pub fn build_menu<R: tauri::Runtime>(app: &AppHandle<R>) -> Menu<R> {
         &[
             &open_file,
             &open_folder,
+            &save,
+            &save_as,
             &open_recent,
         ],
     )

@@ -26,16 +26,42 @@ export default function Workspace() {
 
   const activeTab = tabs[activeTabIndex];
 
+  /* ─────────────────────────────
+     INIT COLLAB
+     ───────────────────────────── */
   useEffect(() => {
     initCollaboration("avant", "room-1");
   }, []);
 
+  /* ─────────────────────────────
+     THEME TOGGLE
+     ───────────────────────────── */
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
     setTheme(isDarkMode ? "vs-dark" : "vs-light");
   }, [isDarkMode]);
 
-  // 🔥 NEW: LISTEN FOR NATIVE MENU "OPEN RECENT"
+  /* ─────────────────────────────
+     🔥 DEBUG: NATIVE MENU SAVE EVENTS
+     ───────────────────────────── */
+  useEffect(() => {
+    const unlistenSave = listen("menu-save", () => {
+      console.log("🔥 FRONTEND RECEIVED: SAVE");
+    });
+
+    const unlistenSaveAs = listen("menu-save-as", () => {
+      console.log("🔥 FRONTEND RECEIVED: SAVE AS");
+    });
+
+    return () => {
+      unlistenSave.then(f => f());
+      unlistenSaveAs.then(f => f());
+    };
+  }, []);
+
+  /* ─────────────────────────────
+     🔥 OPEN RECENT (FROM RUST MENU)
+     ───────────────────────────── */
   useEffect(() => {
     const unlisten = listen<string>("open-recent", async (event) => {
       console.log("🔥 RUST MENU OPEN RECENT:", event.payload);

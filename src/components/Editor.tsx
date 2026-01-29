@@ -1,5 +1,6 @@
 // src/components/Editor.tsx
 import MonacoEditor from "@monaco-editor/react";
+import { useEditorStore } from "../store";
 import { onChange as workflowOnChange } from "../utils/workflow";
 
 interface EditorProps {
@@ -15,9 +16,10 @@ export default function Editor({
   theme,
   path,
 }: EditorProps) {
+  const store = useEditorStore();
+
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      {/* ───── Monaco ───── */}
       <div className="flex-1 min-h-0">
         <MonacoEditor
           height="100%"
@@ -25,10 +27,17 @@ export default function Editor({
           value={value}
           theme={theme}
           onChange={(val) => {
+            if (val === undefined) return;
+
+            // 🔥 THIS IS WHAT YOU WERE MISSING
+            const index = store.activeTabIndex;
+            store.updateTab(index, {
+              content: val,
+              dirty: true,
+            });
+
+            workflowOnChange(path, val);
             onChange(val);
-            if (val !== undefined) {
-              workflowOnChange(path, val);
-            }
           }}
           options={{
             automaticLayout: true,
@@ -38,7 +47,6 @@ export default function Editor({
         />
       </div>
 
-      {/* ───── Status line ───── */}
       <div
         className="h-5 shrink-0 px-2 text-xs flex items-center truncate
                    bg-muted text-muted border-t border-default"

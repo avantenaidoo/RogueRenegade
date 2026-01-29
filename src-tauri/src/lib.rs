@@ -18,16 +18,26 @@ fn greet(name: &str) -> String {
    ───────────────────────────── */
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
+    println!("📖 read_file called -> {}", path);
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn write_file(path: String, contents: String) -> Result<(), String> {
-    fs::write(&path, contents).map_err(|e| e.to_string())
+fn write_file(app: AppHandle, path: String, contents: String) -> Result<(), String> {
+    println!("💾 write_file called -> {}", path);
+
+    fs::write(&path, contents).map_err(|e| e.to_string())?;
+
+    // 🔥🔥🔥 THIS IS THE CRITICAL PART 🔥🔥🔥
+    app.emit("fs-refresh", ()).unwrap();
+
+    Ok(())
 }
 
 #[tauri::command]
 fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
+    println!("🛂 allow_workspace_dir -> {}", path);
+
     app.fs_scope()
         .allow_directory(&path, true)
         .map_err(|e| e.to_string())?;
@@ -113,7 +123,7 @@ fn stage_and_commit(
 }
 
 /* ─────────────────────────────
-   RECENT FOLDERS (HTML MENU SUPPORT)
+   RECENT FOLDERS
    ───────────────────────────── */
 #[tauri::command]
 fn add_recent_folder(app: AppHandle, path: String) {
@@ -123,7 +133,7 @@ fn add_recent_folder(app: AppHandle, path: String) {
 }
 
 /* ─────────────────────────────
-   OPEN RECENT (HTML TITLEBAR)
+   OPEN RECENT
    ───────────────────────────── */
 #[tauri::command]
 fn open_recent(path: String) -> Result<(), String> {
@@ -134,23 +144,6 @@ fn open_recent(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| e.to_string())?;
     }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
     Ok(())
 }
 
@@ -175,6 +168,12 @@ pub fn run() {
             open_recent
         ])
         .setup(|app| {
+            app.fs_scope()
+                .allow_directory("C:\\Users\\avant", true)
+                .expect("FS scope allow failed");
+
+            println!("🔥 FS DEBUG: C:\\Users\\avant fully allowed");
+
             let menu = menu::build_menu(&app.handle());
             app.set_menu(menu).unwrap();
 
@@ -184,9 +183,20 @@ pub fn run() {
         })
         .on_menu_event(|app, event| {
             let id = event.id().as_ref();
+            println!("🔥 MENU EVENT FIRED: {}", id);
 
-            if let Some(path) = id.strip_prefix("open_recent:") {
-                app.emit("open-recent", path.to_string()).unwrap();
+            match id {
+                "save" => {
+                    app.emit("menu-save", ()).unwrap();
+                }
+                "save_as" => {
+                    app.emit("menu-save-as", ()).unwrap();
+                }
+                _ => {
+                    if let Some(path) = id.strip_prefix("open_recent:") {
+                        app.emit("open-recent", path.to_string()).unwrap();
+                    }
+                }
             }
         })
         .run(tauri::generate_context!())
