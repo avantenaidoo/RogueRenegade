@@ -6,6 +6,10 @@ interface FileTab {
   content: string;
   branch?: string | null;
   dirty: boolean;
+  cursor?: {
+    lineNumber: number;
+    column: number;
+  };
 }
 
 interface EditorState {
@@ -43,6 +47,9 @@ const RECENT_FILES_KEY = "rride:recent-files";
 
 const OPEN_TABS_KEY = "rride:open-tabs";
 const ACTIVE_TAB_KEY = "rride:active-tab";
+
+/* 🔥 NEW — cursor persistence */
+const CURSOR_MAP_KEY = "rride:cursor-map";
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   /* ───── EDITOR STATE ───── */
@@ -98,6 +105,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         };
       } else {
         tabs[index] = { ...tabs[index], ...updates };
+      }
+
+      /* 🔥 NEW — persist cursor per file */
+      if (updates.cursor) {
+        const map = JSON.parse(
+          localStorage.getItem(CURSOR_MAP_KEY) || "{}"
+        );
+        map[tabs[index].path] = updates.cursor;
+        localStorage.setItem(CURSOR_MAP_KEY, JSON.stringify(map));
       }
 
       localStorage.setItem(
@@ -192,6 +208,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       localStorage.getItem(ACTIVE_TAB_KEY) || 0
     );
 
+    /* 🔥 NEW — load cursor map */
+    const cursorMap = JSON.parse(
+      localStorage.getItem(CURSOR_MAP_KEY) || "{}"
+    );
+
     const restored: FileTab[] = [];
 
     for (const path of rawTabs) {
@@ -204,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           content: contents,
           branch: null,
           dirty: false,
+          cursor: cursorMap[path], // 🔥 RESTORED HERE
         });
       } catch {
         // file deleted → skip

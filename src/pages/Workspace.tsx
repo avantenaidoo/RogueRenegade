@@ -11,7 +11,6 @@ import { initCollaboration } from "../utils/collaboration";
 import { Canvas } from "@/components/Canvas";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 
-
 export default function Workspace() {
   const {
     setRepoPath,
@@ -42,7 +41,7 @@ export default function Workspace() {
   }, [isDarkMode]);
 
   /* ─────────────────────────────
-     💾 SAVE SESSION (CORRECT + DEBUG)
+     💾 SAVE SESSION + AUTO SAVE + CURSORS
      ───────────────────────────── */
   useEffect(() => {
     const saveSession = async () => {
@@ -63,13 +62,21 @@ export default function Workspace() {
         .map(t => t.path)
         .filter(p => p && p !== "untitled");
 
+      const cursors = state.tabs
+        .filter(t => t.path && t.cursor)
+        .map(t => ({
+          path: t.path,
+          cursor: t.cursor
+        }));
+
       console.log("💾 SAVING SESSION PAYLOAD", {
         last_workspace: state.repoPath ?? null,
         open_files: openFiles,
-        active_file: activeTab?.path ?? null
+        active_file: activeTab?.path ?? null,
+        cursors
       });
 
-      // 🔥 AUTO-SAVE DIRTY FILES ON EXIT
+      // 🔥 AUTO-SAVE DIRTY FILES
       for (const tab of state.tabs) {
         if (tab.dirty && tab.path && tab.path !== "untitled") {
           await writeTextFile(tab.path, tab.content);
@@ -77,13 +84,12 @@ export default function Workspace() {
         }
       }
 
-
       await invoke("log_and_exit", {
         lastWorkspace: state.repoPath ?? null,
         openFiles,
-        activeFile: activeTab?.path ?? null
+        activeFile: activeTab?.path ?? null,
+        cursors
       });
-
     };
 
     // MENU EXIT
@@ -92,11 +98,11 @@ export default function Workspace() {
       await saveSession();
     });
 
-    // 🔥 REAL WINDOW CLOSE HANDLER (TAURI v2)
+    // REAL WINDOW CLOSE (TAURI v2)
     const unlistenClose = appWindow.onCloseRequested(
       async (event: CloseRequestedEvent) => {
         console.log("❌ WINDOW CLOSE (PREVENTED)");
-        event.preventDefault(); // ✅ VALID IN V2
+        event.preventDefault();
         await saveSession();
       }
     );
@@ -108,7 +114,7 @@ export default function Workspace() {
   }, [appWindow]);
 
   /* ─────────────────────────────
-     🔁 RESTORE SESSION (DEBUG)
+     🔁 RESTORE SESSION + CURSORS
      ───────────────────────────── */
   useEffect(() => {
     (async () => {
@@ -118,18 +124,17 @@ export default function Workspace() {
         last_workspace: string | null;
         open_files: string[];
         active_file: string | null;
+        cursors?: {
+          path: string;
+          cursor: { lineNumber: number; column: number };
+        }[];
       }>("get_last_session");
 
       console.log("📥 SESSION RECEIVED FROM RUST", session);
 
-      if (!session) {
-        console.error("❌ SESSION IS NULL");
-        return;
-      }
+      if (!session) return;
 
       if (session.last_workspace) {
-        console.log("📁 RESTORING WORKSPACE", session.last_workspace);
-
         await invoke("allow_workspace_dir", {
           path: session.last_workspace
         });
@@ -138,27 +143,21 @@ export default function Workspace() {
         addRecentFolder(session.last_workspace);
       }
 
-      if (session.open_files.length === 0) {
-        console.error("❌ NO OPEN FILES IN SESSION");
-      }
-
       for (const path of session.open_files) {
-        console.log("📄 RESTORING FILE", path);
-
         try {
           const content = await invoke<string>("read_file", { path });
 
           const state = useEditorStore.getState();
-          const existingIndex = state.tabs.findIndex(
-            t => t.path === path
-          );
-
-          const index =
-            existingIndex !== -1
-              ? existingIndex
-              : state.tabs.length;
+          const existingIndex = state.tabs.findIndex(t => t.path === path);
+          const index = existingIndex !== -1 ? existingIndex : state.tabs.length;
 
           updateTab(index, { path, content });
+
+          const cursorEntry = session.cursors?.find(c => c.path === path);
+          if (cursorEntry) {
+            updateTab(index, { cursor: cursorEntry.cursor });
+            console.log("🎯 Restored cursor for", path, cursorEntry.cursor);
+          }
         } catch (err) {
           console.error("❌ FAILED TO RESTORE FILE", path, err);
         }
@@ -169,10 +168,7 @@ export default function Workspace() {
         const index = state.tabs.findIndex(
           t => t.path === session.active_file
         );
-
-        if (index !== -1) {
-          setActiveTab(index);
-        }
+        if (index !== -1) setActiveTab(index);
       }
 
       console.log("✅ FINAL STATE AFTER RESTORE", useEditorStore.getState());

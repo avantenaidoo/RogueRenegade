@@ -3,6 +3,7 @@
 import MonacoEditor, { OnMount } from "@monaco-editor/react";
 import { useEditorStore } from "../store";
 import { onChange as workflowOnChange } from "../utils/workflow";
+import { useRef, useEffect } from "react";
 
 interface EditorProps {
   value: string;
@@ -18,38 +19,137 @@ export default function Editor({
   path,
 }: EditorProps) {
   const store = useEditorStore();
+  const editorRef = useRef<any>(null);
+
+  // 🔒 RESTORE GUARD
+  const restoringCursorRef = useRef(false);
+
+  console.log("🧪 Editor render", {
+    path,
+    activeTabIndex: store.activeTabIndex,
+    tabs: store.tabs,
+    valueLength: value?.length,
+  });
 
   /* ─────────────────────────────
-     MONACO SETUP (REAL FIX)
+     MONACO SETUP + CURSOR DEBUG
      ───────────────────────────── */
-  const handleEditorMount: OnMount = (_editor, monaco) => {
-    console.log("🧠 Monaco mounted — enabling diagnostics");
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    console.log("🧠 Monaco mounted", {
+      editorId: editor.getId?.(),
+      modelId: editor.getModel()?.id,
+      uri: editor.getModel()?.uri?.toString(),
+    });
+
+    editorRef.current = editor;
 
     const ts = monaco.languages.typescript;
 
-    // Enable diagnostics
     ts.typescriptDefaults.setDiagnosticsOptions({
       noSemanticValidation: false,
       noSyntaxValidation: false,
     });
 
-    // Compiler options (JS + TS linting)
     ts.typescriptDefaults.setCompilerOptions({
       target: ts.ScriptTarget.ES2020,
       module: ts.ModuleKind.ESNext,
       moduleResolution: ts.ModuleResolutionKind.NodeJs,
       jsx: ts.JsxEmit.React,
       strict: true,
-
       allowJs: true,
-      checkJs: true, // 🔥 THIS BRINGS BACK JS LINTING
+      checkJs: true,
       allowNonTsExtensions: true,
-
       esModuleInterop: true,
       skipLibCheck: true,
       forceConsistentCasingInFileNames: true,
     });
+
+    const tab = store.tabs[store.activeTabIndex];
+    const cursor = tab?.cursor;
+
+    console.log("🔁 RESTORE ATTEMPT", {
+      tabPath: tab?.path,
+      savedCursor: cursor,
+      modelBefore: editor.getPosition(),
+    });
+
+    if (cursor) {
+      restoringCursorRef.current = true;
+
+      requestAnimationFrame(() => {
+        console.log("🎯 BEFORE RESTORE POSITION", editor.getPosition());
+
+        editor.setPosition(cursor);
+        editor.revealPositionInCenter(cursor);
+        editor.focus(); // 🔥 THIS MAKES THE CARET ACTUALLY VISIBLE
+
+        console.log("🎯 AFTER RESTORE POSITION", editor.getPosition());
+
+        setTimeout(() => {
+          console.log("🔓 RESTORE COMPLETE – UNLOCKING CURSOR");
+          restoringCursorRef.current = false;
+        }, 0);
+      });
+    }
+
+    /* ─────────────────────────────
+       🔥 CURSOR MOVEMENT TRACKING
+       ───────────────────────────── */
+    editor.onDidChangeCursorPosition((e) => {
+      if (restoringCursorRef.current) {
+        console.log("⛔ CURSOR MOVE IGNORED (RESTORE PHASE)", e.position);
+        return;
+      }
+
+      const index = store.activeTabIndex;
+
+      console.log("📍 CURSOR MOVED", {
+        source: e.source,
+        reason: e.reason,
+        newPosition: e.position,
+        modelId: editor.getModel()?.id,
+      });
+
+      store.updateTab(index, {
+        cursor: {
+          lineNumber: e.position.lineNumber,
+          column: e.position.column,
+        },
+      });
+    });
+
+    /* ─────────────────────────────
+       🔥 MODEL CHANGE TRACKING
+       ───────────────────────────── */
+    editor.onDidChangeModel((e) => {
+      console.log("💥 MODEL CHANGED", {
+        oldModel: e.oldModelUrl?.toString(),
+        newModel: editor.getModel()?.uri?.toString(),
+        cursorAfterModelChange: editor.getPosition(),
+      });
+    });
+
+    editor.getModel()?.onDidChangeContent((e) => {
+      console.log("📝 MODEL CONTENT CHANGED", {
+        changes: e.changes.length,
+        cursorNow: editor.getPosition(),
+      });
+    });
   };
+
+  /* ─────────────────────────────
+     🔥 VALUE CHANGE WATCHER
+     ───────────────────────────── */
+  useEffect(() => {
+    if (!editorRef.current) return;
+
+    console.log("🔄 VALUE PROP CHANGED", {
+      path,
+      valueLength: value?.length,
+      cursorNow: editorRef.current.getPosition(),
+      modelId: editorRef.current.getModel()?.id,
+    });
+  }, [value, path]);
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
@@ -68,6 +168,12 @@ export default function Editor({
             if (val === undefined) return;
 
             const index = store.activeTabIndex;
+
+            console.log("✏️ EDITOR onChange", {
+              path,
+              newLength: val.length,
+              cursorNow: editorRef.current?.getPosition(),
+            });
 
             store.updateTab(index, {
               content: val,

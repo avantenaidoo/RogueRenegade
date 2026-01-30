@@ -7,6 +7,19 @@ use serde::{Deserialize, Serialize};
 mod menu;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+struct CursorEntry {
+    path: String,
+    cursor: CursorPosition,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CursorPosition {
+    #[serde(rename = "lineNumber")]
+    line_number: u32,
+    column: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct LastSession {
     #[serde(default)]
     last_workspace: Option<String>,
@@ -16,6 +29,9 @@ struct LastSession {
 
     #[serde(default)]
     active_file: Option<String>,
+
+    #[serde(default)]
+    cursors: Vec<CursorEntry>,
 }
 
 /* ─────────────────────────────
@@ -112,7 +128,7 @@ fn frontend_log(message: String) {
 }
 
 /* ─────────────────────────────
-   EXIT + SAVE SESSION (STEP 12)
+   EXIT + SAVE SESSION
    ───────────────────────────── */
 #[tauri::command]
 fn log_and_exit(
@@ -120,6 +136,7 @@ fn log_and_exit(
     last_workspace: Option<String>,
     open_files: Vec<String>,
     active_file: Option<String>,
+    cursors: Vec<CursorEntry>,
 ) {
     println!("🚪 EXIT REQUEST RECEIVED");
 
@@ -127,6 +144,7 @@ fn log_and_exit(
         last_workspace: last_workspace.clone(),
         open_files: open_files.clone(),
         active_file: active_file.clone(),
+        cursors,
     };
 
     if let Some(ws) = &session.last_workspace {
@@ -141,6 +159,14 @@ fn log_and_exit(
 
     if let Some(active) = &session.active_file {
         println!("⭐ Active file: {}", active);
+    }
+
+    println!("📍 Saved cursors:");
+    for c in &session.cursors {
+        println!(
+            "   • {} @ line {}, col {}",
+            c.path, c.cursor.line_number, c.cursor.column
+        );
     }
 
     match app.path().app_data_dir() {
@@ -160,51 +186,6 @@ fn log_and_exit(
     println!("👋 Shutting down application now...");
     app.exit(0);
 }
-
-/* ─────────────────────────────
-   RESTORE ON STARTUP
-   ───────────────────────────── */
-// fn restore_last_session(app: &AppHandle) {
-//     println!("🔁 Attempting to restore last session...");
-
-//     let dir = match app.path().app_data_dir() {
-//         Ok(d) => d,
-//         Err(e) => {
-//             eprintln!("❌ Could not resolve app data directory: {}", e);
-//             return;
-//         }
-//     };
-
-//     let path = dir.join("last_session.json");
-//     if !path.exists() {
-//         println!("ℹ️ No previous session found");
-//         return;
-//     }
-
-//     match fs::read_to_string(&path)
-//         .ok()
-//         .and_then(|c| serde_json::from_str::<LastSession>(&c).ok())
-//     {
-//         Some(session) => {
-//             println!("🔁 Restoring last session");
-
-//             if let Some(ws) = &session.last_workspace {
-//                 println!("📁 Last workspace: {}", ws);
-//             }
-
-//             for f in &session.open_files {
-//                 println!("📄 Open file: {}", f);
-//             }
-
-//             if let Some(active) = &session.active_file {
-//                 println!("⭐ Active file: {}", active);
-//             }
-
-//             app.emit("restore-last-session", session).unwrap();
-//         }
-//         None => eprintln!("❌ Failed to parse last_session.json"),
-//     }
-// }
 
 /* ─────────────────────────────
    RUN
@@ -236,7 +217,6 @@ pub fn run() {
             println!("🔥 FS DEBUG: C:\\Users\\avant fully allowed");
             println!("🟢 Tauri app setup complete!");
 
-            // restore_last_session(&app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
