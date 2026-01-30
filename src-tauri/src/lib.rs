@@ -59,7 +59,7 @@ fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
 #[tauri::command]
 fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
     let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repo: {}", e))?;
+        .map_err(|e| e.to_string())?;
 
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
@@ -70,13 +70,34 @@ fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
         .statuses(Some(&mut opts))
         .map_err(|e| e.to_string())?;
 
-    let files = statuses
+    let files: Vec<String> = statuses
         .iter()
         .filter_map(|e| e.path().map(String::from))
         .collect();
 
     Ok(files)
 }
+
+#[tauri::command]
+fn get_last_session(app: AppHandle) -> Result<LastSession, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let path = dir.join("last_session.json");
+
+    let contents = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read last_session.json: {}", e))?;
+
+    let session: LastSession =
+        serde_json::from_str(&contents)
+            .map_err(|e| format!("Failed to parse session: {}", e))?;
+
+    println!("📤 get_last_session -> {:?}", session);
+    Ok(session)
+}
+
 
 #[tauri::command]
 fn get_current_branch(repo_path: String) -> Result<String, String> {
@@ -153,6 +174,12 @@ fn open_recent(path: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+fn frontend_log(message: String) {
+    println!("🌐 FRONTEND -> {}", message);
+}
+
 
 /* ─────────────────────────────
    EXIT + SAVE SESSION
@@ -265,7 +292,9 @@ pub fn run() {
             stage_and_commit,
             add_recent_folder,
             open_recent,
-            log_and_exit
+            log_and_exit,
+            get_last_session,
+            frontend_log 
         ])
         .setup(|app| {
             app.fs_scope()

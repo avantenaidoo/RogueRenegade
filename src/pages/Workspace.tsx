@@ -1,8 +1,6 @@
-// src/pages/Workspace.tsx
 import { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-//import { getCurrentWindow } from "@tauri-apps/api/window"; // ✅ TAURI v2 CORRECT
 
 import { useEditorStore } from "../store";
 import { initCollaboration } from "../utils/collaboration";
@@ -12,20 +10,12 @@ export default function Workspace() {
   const {
     tabs,
     activeTabIndex,
-    updateTab,
-    setActiveTab,
-    closeTab,
-    markClean,
     setRepoPath,
     addRecentFolder
   } = useEditorStore();
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [isDarkMode, setIsDarkMode] = useState(true);
-  const [dirtyFiles, setDirtyFiles] = useState<string[]>([]);
-  const [panelOpen, setPanelOpen] = useState(false);
-
-  const activeTab = tabs[activeTabIndex];
 
   /* ─────────────────────────────
      INIT COLLAB
@@ -43,37 +33,17 @@ export default function Workspace() {
   }, [isDarkMode]);
 
   /* ─────────────────────────────
-     🔥 DEBUG: NATIVE MENU SAVE EVENTS
-     ───────────────────────────── */
-  useEffect(() => {
-    const unlistenSave = listen("menu-save", () => {
-      console.log("🔥 FRONTEND RECEIVED: SAVE");
-    });
-
-    const unlistenSaveAs = listen("menu-save-as", () => {
-      console.log("🔥 FRONTEND RECEIVED: SAVE AS");
-    });
-
-    return () => {
-      unlistenSave.then(f => f());
-      unlistenSaveAs.then(f => f());
-    };
-  }, []);
-
-  /* ─────────────────────────────
-     🚪 STEP 8 — EXIT (MENU)
+     🚪 EXIT (MENU)
      ───────────────────────────── */
   useEffect(() => {
     const unlistenExit = listen("menu-exit", async () => {
       console.log("🚪 FRONTEND RECEIVED: EXIT");
 
-      const lastWorkspace = useEditorStore.getState().repoPath;
-      const activeTab = useEditorStore.getState().tabs[
-        useEditorStore.getState().activeTabIndex
-      ];
+      const state = useEditorStore.getState();
+      const activeTab = state.tabs[state.activeTabIndex];
 
       await invoke("log_and_exit", {
-        lastWorkspace: lastWorkspace ?? null,
+        lastWorkspace: state.repoPath ?? null,
         lastFile: activeTab?.path ?? null
       });
     });
@@ -84,21 +54,41 @@ export default function Workspace() {
   }, []);
 
   /* ─────────────────────────────
-     🔥 OPEN RECENT (FROM RUST MENU)
+     🔥 STEP 11 — RESTORE (CORRECT)
      ───────────────────────────── */
   useEffect(() => {
-    const unlisten = listen<string>("open-recent", async (event) => {
-      console.log("🔥 RUST MENU OPEN RECENT:", event.payload);
-      const path = event.payload;
+    (async () => {
+      console.log("🔁 FRONTEND REQUESTING LAST SESSION");
 
-      await invoke("allow_workspace_dir", { path });
-      setRepoPath(path);
-      addRecentFolder(path);
-    });
+      await invoke("frontend_log", {
+        message: "🔁 FRONTEND REQUESTING LAST SESSION"
+      });
 
-    return () => {
-      unlisten.then((f) => f());
-    };
+      const session = await invoke<{
+        last_workspace: string | null;
+        last_file: string | null;
+      } | null>("get_last_session");
+
+      if (!session) return;
+
+      if (session.last_workspace) {
+        console.log("📁 Restoring workspace:", session.last_workspace);
+
+        await invoke("frontend_log", {
+          message: `📁 Restoring workspace: ${session.last_workspace}`
+        });
+
+
+
+        await invoke("allow_workspace_dir", { path: session.last_workspace });
+        setRepoPath(session.last_workspace);
+        addRecentFolder(session.last_workspace);
+      }
+
+      if (session.last_file) {
+        console.log("📄 Restoring last file:", session.last_file);
+      }
+    })();
   }, [setRepoPath, addRecentFolder]);
 
   return <Canvas />;
