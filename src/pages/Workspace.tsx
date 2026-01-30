@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window"; // ✅ TAURI v2 CORRECT
+//import { getCurrentWindow } from "@tauri-apps/api/window"; // ✅ TAURI v2 CORRECT
 
 import { useEditorStore } from "../store";
 import { initCollaboration } from "../utils/collaboration";
@@ -64,11 +64,18 @@ export default function Workspace() {
      🚪 STEP 8 — EXIT (MENU)
      ───────────────────────────── */
   useEffect(() => {
-    const window = getCurrentWindow();
-
-    const unlistenExit = listen("menu-exit", () => {
+    const unlistenExit = listen("menu-exit", async () => {
       console.log("🚪 FRONTEND RECEIVED: EXIT");
-      window.close(); // ✅ TAURI v2 CORRECT
+
+      const lastWorkspace = useEditorStore.getState().repoPath;
+      const activeTab = useEditorStore.getState().tabs[
+        useEditorStore.getState().activeTabIndex
+      ];
+
+      await invoke("log_and_exit", {
+        lastWorkspace: lastWorkspace ?? null,
+        lastFile: activeTab?.path ?? null
+      });
     });
 
     return () => {

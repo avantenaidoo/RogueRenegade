@@ -147,6 +147,26 @@ fn open_recent(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn log_and_exit(app: AppHandle, last_workspace: Option<String>, last_file: Option<String>) {
+    println!("🚪 EXIT REQUEST RECEIVED");
+
+    if let Some(ws) = last_workspace {
+        println!("📁 Last workspace before exit: {}", ws);
+    } else {
+        println!("📁 No workspace open at exit");
+    }
+
+    if let Some(file) = last_file {
+        println!("📄 Last active file before exit: {}", file);
+    } else {
+        println!("📄 No active file at exit");
+    }
+
+    println!("👋 Shutting down application now...");
+    app.exit(0);
+}
+
 /* ─────────────────────────────
    RUN
    ───────────────────────────── */
@@ -165,7 +185,8 @@ pub fn run() {
             get_current_branch,
             stage_and_commit,
             add_recent_folder,
-            open_recent
+            open_recent,
+            log_and_exit
         ])
         .setup(|app| {
             app.fs_scope()
@@ -204,6 +225,14 @@ pub fn run() {
                         app.emit("open-recent", path.to_string()).unwrap();
                     }
                 }
+            }
+        })
+        // ✅ STEP 8 — WINDOW CLOSE (X / ALT+F4)
+        .on_window_event(|app, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                println!("🚪 WINDOW CLOSE REQUESTED (X / Alt+F4)");
+                api.prevent_close();
+                app.emit("menu-exit", ()).unwrap();
             }
         })
         .run(tauri::generate_context!())
