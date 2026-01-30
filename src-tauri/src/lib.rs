@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 mod menu;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct LastSession {
     last_workspace: Option<String>,
     last_file: Option<String>,
@@ -154,6 +154,9 @@ fn open_recent(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/* ─────────────────────────────
+   EXIT + SAVE SESSION
+   ───────────────────────────── */
 #[tauri::command]
 fn log_and_exit(app: AppHandle, last_workspace: Option<String>, last_file: Option<String>) {
     println!("🚪 EXIT REQUEST RECEIVED");
@@ -200,6 +203,50 @@ fn log_and_exit(app: AppHandle, last_workspace: Option<String>, last_file: Optio
 }
 
 /* ─────────────────────────────
+   STEP 10 — RESTORE LAST SESSION
+   ───────────────────────────── */
+fn restore_last_session(app: &AppHandle) {
+    println!("🔁 Attempting to restore last session...");
+
+    let dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("❌ Could not resolve app data directory: {}", e);
+            return;
+        }
+    };
+
+    let path = dir.join("last_session.json");
+
+    if !path.exists() {
+        println!("ℹ️ No previous session found");
+        return;
+    }
+
+    match std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|contents| serde_json::from_str::<LastSession>(&contents).ok())
+    {
+        Some(session) => {
+            println!("🔁 Restoring last session");
+
+            if let Some(ws) = &session.last_workspace {
+                println!("📁 Last workspace: {}", ws);
+            }
+
+            if let Some(file) = &session.last_file {
+                println!("📄 Last file: {}", file);
+            }
+
+            app.emit("restore-last-session", session).unwrap();
+        }
+        None => {
+            eprintln!("❌ Failed to parse last_session.json");
+        }
+    }
+}
+
+/* ─────────────────────────────
    RUN
    ───────────────────────────── */
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -231,6 +278,10 @@ pub fn run() {
             app.set_menu(menu).unwrap();
 
             println!("🟢 Tauri app setup complete!");
+
+            // 🔥 STEP 10 — RESTORE ON STARTUP
+            restore_last_session(&app.handle());
+
             app.handle().emit("app-ready", ()).unwrap();
             Ok(())
         })
@@ -245,13 +296,10 @@ pub fn run() {
                 "save_as" => {
                     app.emit("menu-save-as", ()).unwrap();
                 }
-
-                // ✅ STEP 8 — EXIT (MENU)
                 "exit" => {
                     println!("🚪 EXIT MENU CLICKED");
                     app.emit("menu-exit", ()).unwrap();
                 }
-
                 _ => {
                     if let Some(path) = id.strip_prefix("open_recent:") {
                         app.emit("open-recent", path.to_string()).unwrap();
@@ -259,7 +307,6 @@ pub fn run() {
                 }
             }
         })
-        // ✅ STEP 8 — WINDOW CLOSE (X / ALT+F4)
         .on_window_event(|app, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 println!("🚪 WINDOW CLOSE REQUESTED (X / Alt+F4)");
