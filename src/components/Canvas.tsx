@@ -67,8 +67,12 @@ export const Canvas: React.FC = () => {
                             <div
                                 key={tab.path}
                                 onClick={() => setActiveTab(i)}
-                                className={`flex items-center gap-2 px-3 text-sm cursor-pointer ${i === activeTabIndex ? "bg-muted" : ""
-                                    }`}
+                                className={`flex items-center gap-2 px-3 text-sm cursor-pointer
+                                ${
+                                    i === activeTabIndex
+                                    ? "bg-(--foreground)/75 text-(--background) shadow-inner border-b-2 border-blue-500"
+                                    : "bg-transparent text-default hover:bg-neutral-500"
+                                }`}
                             >
                                 <span className="truncate max-w-40">
                                     {tab.path.split(/[\\/]/).pop()}
