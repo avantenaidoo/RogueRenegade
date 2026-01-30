@@ -1,9 +1,16 @@
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_fs::FsExt;
 use std::fs;
 use git2::{Repository, StatusOptions};
+use serde::{Deserialize, Serialize};
 
 mod menu;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LastSession {
+    last_workspace: Option<String>,
+    last_file: Option<String>,
+}
 
 /* ─────────────────────────────
    GREET COMMAND
@@ -151,16 +158,41 @@ fn open_recent(path: String) -> Result<(), String> {
 fn log_and_exit(app: AppHandle, last_workspace: Option<String>, last_file: Option<String>) {
     println!("🚪 EXIT REQUEST RECEIVED");
 
-    if let Some(ws) = last_workspace {
+    let session = LastSession {
+        last_workspace: last_workspace.clone(),
+        last_file: last_file.clone(),
+    };
+
+    if let Some(ws) = &session.last_workspace {
         println!("📁 Last workspace before exit: {}", ws);
     } else {
         println!("📁 No workspace open at exit");
     }
 
-    if let Some(file) = last_file {
+    if let Some(file) = &session.last_file {
         println!("📄 Last active file before exit: {}", file);
     } else {
         println!("📄 No active file at exit");
+    }
+
+    // 🔥 PERSIST TO DISK (TAURI v2 CORRECT)
+    match app.path().app_data_dir() {
+        Ok(dir) => {
+            let path = dir.join("last_session.json");
+
+            match std::fs::create_dir_all(&dir)
+                .and_then(|_| {
+                    let json = serde_json::to_string_pretty(&session)?;
+                    std::fs::write(&path, json)?;
+                    Ok(())
+                }) {
+                Ok(_) => println!("💾 Last session saved to {:?}", path),
+                Err(e) => eprintln!("❌ Failed to save last session: {}", e),
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ Could not resolve app data directory: {}", e);
+        }
     }
 
     println!("👋 Shutting down application now...");
