@@ -79,10 +79,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  /* 🔥 FIXED: updateTab can now CREATE tabs safely */
   updateTab: (index, updates) =>
     set(state => {
       const tabs = [...state.tabs];
-      tabs[index] = { ...tabs[index], ...updates };
+
+      if (!tabs[index]) {
+        if (!updates.path || updates.content === undefined) {
+          console.warn("⚠️ updateTab called for missing tab without path/content");
+          return state;
+        }
+
+        tabs[index] = {
+          path: updates.path,
+          content: updates.content,
+          branch: updates.branch ?? null,
+          dirty: updates.dirty ?? false,
+        };
+      } else {
+        tabs[index] = { ...tabs[index], ...updates };
+      }
+
+      localStorage.setItem(
+        OPEN_TABS_KEY,
+        JSON.stringify(tabs.map(t => t.path))
+      );
+
       return { tabs };
     }),
 
