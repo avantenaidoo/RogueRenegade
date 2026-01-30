@@ -192,6 +192,13 @@ pub fn run() {
                 "save_as" => {
                     app.emit("menu-save-as", ()).unwrap();
                 }
+
+                // ✅ STEP 8 — EXIT (MENU)
+                "exit" => {
+                    println!("🚪 EXIT MENU CLICKED");
+                    app.emit("menu-exit", ()).unwrap();
+                }
+
                 _ => {
                     if let Some(path) = id.strip_prefix("open_recent:") {
                         app.emit("open-recent", path.to_string()).unwrap();
