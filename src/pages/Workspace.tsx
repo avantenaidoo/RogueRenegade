@@ -9,6 +9,8 @@ import {
 import { useEditorStore } from "../store";
 import { initCollaboration } from "../utils/collaboration";
 import { Canvas } from "@/components/Canvas";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+
 
 export default function Workspace() {
   const {
@@ -66,6 +68,15 @@ export default function Workspace() {
         open_files: openFiles,
         active_file: activeTab?.path ?? null
       });
+
+      // 🔥 AUTO-SAVE DIRTY FILES ON EXIT
+      for (const tab of state.tabs) {
+        if (tab.dirty && tab.path && tab.path !== "untitled") {
+          await writeTextFile(tab.path, tab.content);
+          console.log("💾 AUTO-SAVED", tab.path);
+        }
+      }
+
 
       await invoke("log_and_exit", {
         lastWorkspace: state.repoPath ?? null,
