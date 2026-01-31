@@ -14,14 +14,14 @@ export function MenuBar() {
       {menus.map(menu => (
         <div
           key={menu.label}
-          className="relative px-3 h-full flex items-center hover:bg-zinc-700 cursor-pointer"
+          className="relative px-3 h-full flex items-center hover: cursor-pointer"
           onMouseEnter={() => setOpenMenu(menu.label)}
           onMouseLeave={() => setOpenMenu(null)}
         >
           {menu.label}
 
           {openMenu === menu.label && (
-            <div className="absolute top-full left-0 bg-zinc-800 border border-zinc-700 min-w-55 z-50">
+            <div className="absolute top-full left-0 bg-default border-zinc-700 min-w-55 z-50">
               {menu.items.map((item, i) => (
                 <MenuItem
                   key={i}

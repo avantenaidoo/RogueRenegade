@@ -23,7 +23,7 @@ export default function TitleBar() {
           />
         </div>
 
-        {/* MENU BAR (VS CODE STYLE) */}
+        {/* MENU BAR */}
         <MenuBar />
       </div>
 
