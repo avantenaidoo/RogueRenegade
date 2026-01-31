@@ -19,7 +19,6 @@ export const Canvas: React.FC = () => {
         setActiveTab,
         closeTab,
         updateTab,
-        markDirty,
         markClean,
     } = useEditorStore();
 
@@ -103,7 +102,6 @@ export const Canvas: React.FC = () => {
                                 theme={theme}
                                 onChange={(val) => {
                                     updateTab(activeTabIndex, { content: val ?? "" });
-                                    markDirty(activeTab.path);
                                 }}
                             />
                         )}

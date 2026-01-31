@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 interface FileTab {
   path: string;
   content: string;
+  savedContent: string; // 🔥 baseline for dirty comparison
   branch?: string | null;
   dirty: boolean;
   cursor?: {
@@ -48,14 +49,17 @@ const RECENT_FILES_KEY = "rride:recent-files";
 const OPEN_TABS_KEY = "rride:open-tabs";
 const ACTIVE_TAB_KEY = "rride:active-tab";
 
-/* 🔥 NEW — cursor persistence */
+/* 🔥 cursor persistence */
 const CURSOR_MAP_KEY = "rride:cursor-map";
+
+const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   /* ───── EDITOR STATE ───── */
   tabs: [],
   activeTabIndex: 0,
 
+  /* ✅ EDITED */
   addTab: (path, content) => {
     const existingIndex = get().tabs.findIndex(t => t.path === path);
     if (existingIndex >= 0) {
@@ -67,7 +71,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set(state => {
       const nextTabs = [
         ...state.tabs,
-        { path, content, branch: null, dirty: false },
+        {
+          path,
+          content,
+          savedContent: normalize(content), // ✅ FIXED — WAS contents
+          branch: null,
+          dirty: false,
+        },
       ];
 
       localStorage.setItem(
@@ -86,12 +96,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  /* 🔥 FIXED: updateTab can now CREATE tabs safely */
+  /* ✅ EDITED — DIRTY IS DERIVED */
   updateTab: (index, updates) =>
     set(state => {
       const tabs = [...state.tabs];
+      const tab = tabs[index];
 
-      if (!tabs[index]) {
+      if (!tab) {
         if (!updates.path || updates.content === undefined) {
           console.warn("⚠️ updateTab called for missing tab without path/content");
           return state;
@@ -100,14 +111,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         tabs[index] = {
           path: updates.path,
           content: updates.content,
+          savedContent: updates.content,
           branch: updates.branch ?? null,
-          dirty: updates.dirty ?? false,
+          dirty: false,
         };
       } else {
-        tabs[index] = { ...tabs[index], ...updates };
+        const nextContent =
+          updates.content !== undefined
+            ? normalize(updates.content)
+            : tab.content;
+
+        const nextSaved =
+          updates.savedContent !== undefined
+            ? normalize(updates.savedContent)
+            : tab.savedContent;
+
+        tabs[index] = {
+          ...tab,
+          ...updates,
+          content: nextContent,
+          savedContent: nextSaved,
+          dirty: nextContent !== nextSaved, // 🔥 THE FIX
+        };
       }
 
-      /* 🔥 NEW — persist cursor per file */
+      /* cursor persistence stays */
       if (updates.cursor) {
         const map = JSON.parse(
           localStorage.getItem(CURSOR_MAP_KEY) || "{}"
@@ -150,6 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { tabs, activeTabIndex: Math.max(newIndex, 0) };
     }),
 
+  /* left intact (now optional / harmless) */
   markDirty: path =>
     set(state => ({
       tabs: state.tabs.map(tab =>
@@ -198,7 +227,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ recentFiles: next });
   },
 
-  /* ───── TAB RESTORE ───── */
+  /* ✅ EDITED */
   restoreTabs: async () => {
     const rawTabs = JSON.parse(
       localStorage.getItem(OPEN_TABS_KEY) || "[]"
@@ -208,7 +237,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       localStorage.getItem(ACTIVE_TAB_KEY) || 0
     );
 
-    /* 🔥 NEW — load cursor map */
     const cursorMap = JSON.parse(
       localStorage.getItem(CURSOR_MAP_KEY) || "{}"
     );
@@ -223,9 +251,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         restored.push({
           path,
           content: contents,
+          savedContent: normalize(contents), // 🔥 baseline restored
           branch: null,
           dirty: false,
-          cursor: cursorMap[path], // 🔥 RESTORED HERE
+          cursor: cursorMap[path],
         });
       } catch {
         // file deleted → skip

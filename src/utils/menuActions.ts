@@ -3,6 +3,9 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEditorStore } from "../store";
 
+/* ✅ FIX: LOCAL NORMALIZE (DO NOT REMOVE) */
+const normalize = (s: string) => s.replace(/\r\n/g, "\n");
+
 export async function runMenuAction(action?: string) {
   if (!action) return;
 
@@ -58,10 +61,9 @@ export async function runMenuAction(action?: string) {
         const newPath = await save();
         if (!newPath) return;
 
-        // ⚠️ MUST UPDATE TAB FIRST
         store.updateTab(activeIndex, {
           path: newPath,
-          dirty: false,
+          savedContent: normalize(activeTab.content),
         });
 
         await invoke("write_file", {
@@ -79,7 +81,10 @@ export async function runMenuAction(action?: string) {
         contents: activeTab.content,
       });
 
-      store.markClean(activeTab.path);
+      store.updateTab(activeIndex, {
+        savedContent: normalize(activeTab.content),
+      });
+
       store.addRecentFile(activeTab.path);
       break;
     }
@@ -101,7 +106,7 @@ export async function runMenuAction(action?: string) {
 
       store.updateTab(activeIndex, {
         path: newPath,
-        dirty: false,
+        savedContent: normalize(activeTab.content),
       });
 
       store.addRecentFile(newPath);

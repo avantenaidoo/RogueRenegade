@@ -1,9 +1,10 @@
-// src/components/Editor.tsx
-
 import MonacoEditor, { OnMount } from "@monaco-editor/react";
 import { useEditorStore } from "../store";
 import { onChange as workflowOnChange } from "../utils/workflow";
 import { useRef, useEffect } from "react";
+
+/* 🔥 REQUIRED */
+const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
 interface EditorProps {
   value: string;
@@ -21,13 +22,13 @@ export default function Editor({
   const store = useEditorStore();
   const editorRef = useRef<any>(null);
 
-  // 🔒 RESTORE GUARD
+  /* 🔒 RESTORE GUARD */
   const restoringCursorRef = useRef(false);
 
   console.log("🧪 Editor render", {
     path,
     activeTabIndex: store.activeTabIndex,
-    tabs: store.tabs,
+    tab: store.tabs[store.activeTabIndex],
     valueLength: value?.length,
   });
 
@@ -81,33 +82,31 @@ export default function Editor({
 
         editor.setPosition(cursor);
         editor.revealPositionInCenter(cursor);
-        editor.focus(); // 🔥 THIS MAKES THE CARET ACTUALLY VISIBLE
+        editor.focus();
 
         console.log("🎯 AFTER RESTORE POSITION", editor.getPosition());
 
         setTimeout(() => {
-          console.log("🔓 RESTORE COMPLETE – UNLOCKING CURSOR");
           restoringCursorRef.current = false;
+          console.log("🔓 RESTORE COMPLETE");
         }, 0);
       });
     }
 
     /* ─────────────────────────────
-       🔥 CURSOR MOVEMENT TRACKING
+       🔥 CURSOR TRACKING
        ───────────────────────────── */
     editor.onDidChangeCursorPosition((e) => {
       if (restoringCursorRef.current) {
-        console.log("⛔ CURSOR MOVE IGNORED (RESTORE PHASE)", e.position);
+        console.log("⛔ CURSOR MOVE IGNORED (RESTORE)", e.position);
         return;
       }
 
       const index = store.activeTabIndex;
 
       console.log("📍 CURSOR MOVED", {
-        source: e.source,
+        position: e.position,
         reason: e.reason,
-        newPosition: e.position,
-        modelId: editor.getModel()?.id,
       });
 
       store.updateTab(index, {
@@ -119,26 +118,18 @@ export default function Editor({
     });
 
     /* ─────────────────────────────
-       🔥 MODEL CHANGE TRACKING
+       🔥 MODEL DEBUG
        ───────────────────────────── */
-    editor.onDidChangeModel((e) => {
-      console.log("💥 MODEL CHANGED", {
-        oldModel: e.oldModelUrl?.toString(),
-        newModel: editor.getModel()?.uri?.toString(),
-        cursorAfterModelChange: editor.getPosition(),
-      });
-    });
-
-    editor.getModel()?.onDidChangeContent((e) => {
+    editor.getModel()?.onDidChangeContent(() => {
       console.log("📝 MODEL CONTENT CHANGED", {
-        changes: e.changes.length,
-        cursorNow: editor.getPosition(),
+        cursor: editor.getPosition(),
+        valueLength: editor.getValue()?.length,
       });
     });
   };
 
   /* ─────────────────────────────
-     🔥 VALUE CHANGE WATCHER
+     🔥 VALUE PROP WATCHER
      ───────────────────────────── */
   useEffect(() => {
     if (!editorRef.current) return;
@@ -168,16 +159,24 @@ export default function Editor({
             if (val === undefined) return;
 
             const index = store.activeTabIndex;
+            const tab = store.tabs[index];
 
-            console.log("✏️ EDITOR onChange", {
-              path,
-              newLength: val.length,
-              cursorNow: editorRef.current?.getPosition(),
+            const normalizedNext = normalize(val);
+            const normalizedSaved = normalize(tab.savedContent);
+
+            const isDirty = normalizedNext !== normalizedSaved;
+
+            console.log("🔥 DIRTY CHECK", {
+              path: tab.path,
+              nextLength: normalizedNext.length,
+              savedLength: normalizedSaved.length,
+              equal: normalizedNext === normalizedSaved,
+              DIRTY_RESULT: isDirty,
             });
 
             store.updateTab(index, {
-              content: val,
-              dirty: true,
+              content: normalizedNext,
+              dirty: isDirty,
             });
 
             workflowOnChange(path, val);
