@@ -69,7 +69,7 @@ export const Canvas: React.FC = () => {
                                 className={`flex items-center gap-2 px-3 text-sm cursor-pointer
                                 ${
                                     i === activeTabIndex
-                                    ? "bg-(--foreground)/75 text-(--background) shadow-inner border-b-2 border-blue-500"
+                                    ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
                                     : "bg-transparent text-default hover:bg-neutral-500"
                                 }`}
                             >

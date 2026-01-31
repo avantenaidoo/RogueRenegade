@@ -14,7 +14,7 @@ export function MenuBar() {
       {menus.map(menu => (
         <div
           key={menu.label}
-          className="relative px-3 h-full flex items-center hover: cursor-pointer"
+          className="relative px-3 h-full flex items-center hover:bg-neutral-500 cursor-pointer"
           onMouseEnter={() => setOpenMenu(menu.label)}
           onMouseLeave={() => setOpenMenu(null)}
         >

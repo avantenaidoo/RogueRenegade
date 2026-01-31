@@ -37,7 +37,7 @@ export function MenuItem({ item, closeMenu }: any) {
 
   return (
     <div
-      className="relative px-3 py-1 flex justify-between hover: text-default cursor-pointer"
+      className="relative px-3 py-1 flex justify-between hover:bg-neutral-500 cursor-pointer"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
       onClick={() => {
@@ -57,7 +57,7 @@ export function MenuItem({ item, closeMenu }: any) {
           {recentFolders.map(path => (
             <div
               key={path}
-              className="px-3 py-1 hover: cursor-pointer truncate"
+              className="px-3 py-1 hover:bg-neutral-500 cursor-pointer truncate"
               onClick={async (e) => {
                 e.stopPropagation();
                 closeMenu();
@@ -80,7 +80,7 @@ export function MenuItem({ item, closeMenu }: any) {
           {recentFiles.map(path => (
             <div
               key={path}
-              className="px-3 py-1 hover: cursor-pointer truncate"
+              className="px-3 py-1 hover:bg-neutral-500 cursor-pointer truncate"
               onClick={async (e) => {
                 e.stopPropagation();
                 closeMenu();

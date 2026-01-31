@@ -38,14 +38,14 @@ export default function TitleBar() {
       {/* RIGHT — WINDOW CONTROLS */}
       <div className="flex">
         <button
-          className="w-10 h-9 flex items-center justify-center hover:bg-default/10"
+          className="w-10 h-9 flex items-center justify-center hover:bg-neutral-500"
           onClick={() => appWindow.minimize()}
         >
           —
         </button>
 
         <button
-          className="w-10 h-9 flex items-center justify-center hover:bg-default/10"
+          className="w-10 h-9 flex items-center justify-center hover:bg-neutral-500"
           onClick={() => appWindow.toggleMaximize()}
         >
           ▢
