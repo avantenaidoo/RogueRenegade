@@ -10,7 +10,17 @@ export function MenuBar() {
   };
 
   return (
-    <div className="flex h-full">
+    <div
+      className="flex h-full"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       {menus.map(menu => (
         <div
           key={menu.label}

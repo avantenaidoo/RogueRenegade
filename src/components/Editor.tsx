@@ -25,6 +25,13 @@ export default function Editor({
   /* 🔒 RESTORE GUARD */
   const restoringCursorRef = useRef(false);
 
+  /* ✅ VS CODE STYLE SELECTION CACHE */
+  const lastSelectionRef = useRef<any>(null);
+  const lastSelectedTextRef = useRef<string>("");
+
+  /* ✅ PER-FILE MODEL CACHE (THIS FIXES UNDO) */
+  const modelsRef = useRef<Map<string, any>>(new Map());
+
   console.log("🧪 Editor render", {
     path,
     activeTabIndex: store.activeTabIndex,
@@ -65,6 +72,23 @@ export default function Editor({
       forceConsistentCasingInFileNames: true,
     });
 
+    /* ✅ CREATE OR REUSE MODEL PER FILE */
+    let model = modelsRef.current.get(path);
+    if (!model) {
+      model = monaco.editor.createModel(
+        value ?? "",
+        path.endsWith(".ts") || path.endsWith(".tsx")
+          ? "typescript"
+          : "javascript",
+        monaco.Uri.file(path)
+      );
+      modelsRef.current.set(path, model);
+    }
+
+    if (editor.getModel() !== model) {
+      editor.setModel(model);
+    }
+
     const tab = store.tabs[store.activeTabIndex];
     const cursor = tab?.cursor;
 
@@ -78,13 +102,9 @@ export default function Editor({
       restoringCursorRef.current = true;
 
       requestAnimationFrame(() => {
-        console.log("🎯 BEFORE RESTORE POSITION", editor.getPosition());
-
         editor.setPosition(cursor);
         editor.revealPositionInCenter(cursor);
         editor.focus();
-
-        console.log("🎯 AFTER RESTORE POSITION", editor.getPosition());
 
         setTimeout(() => {
           restoringCursorRef.current = false;
@@ -93,66 +113,134 @@ export default function Editor({
       });
     }
 
-    /* ─────────────────────────────
-       🔥 CURSOR TRACKING
-       ───────────────────────────── */
-    editor.onDidChangeCursorPosition((e) => {
-      if (restoringCursorRef.current) {
-        console.log("⛔ CURSOR MOVE IGNORED (RESTORE)", e.position);
-        return;
+    /* ✅ VS CODE BEHAVIOR: TRACK SELECTION BEFORE MENU STEALS FOCUS */
+    editor.onDidChangeCursorSelection((e) => {
+      if (e.selection && !e.selection.isEmpty()) {
+        lastSelectionRef.current = e.selection;
+        lastSelectedTextRef.current =
+          editor.getModel()?.getValueInRange(e.selection) ?? "";
+
+        console.log("🧠 SELECTION CACHED", {
+          textLength: lastSelectedTextRef.current.length,
+        });
       }
+    });
 
-      const index = store.activeTabIndex;
+    editor.onDidChangeCursorPosition((e) => {
+      if (restoringCursorRef.current) return;
 
-      console.log("📍 CURSOR MOVED", {
-        position: e.position,
-        reason: e.reason,
-      });
-
-      store.updateTab(index, {
+      store.updateTab(store.activeTabIndex, {
         cursor: {
           lineNumber: e.position.lineNumber,
           column: e.position.column,
         },
       });
     });
-
-    /* ─────────────────────────────
-       🔥 MODEL DEBUG
-       ───────────────────────────── */
-    editor.getModel()?.onDidChangeContent(() => {
-      console.log("📝 MODEL CONTENT CHANGED", {
-        cursor: editor.getPosition(),
-        valueLength: editor.getValue()?.length,
-      });
-    });
   };
 
   /* ─────────────────────────────
-     🔥 VALUE PROP WATCHER
+     🔥 SWITCH MODEL ON FILE CHANGE
      ───────────────────────────── */
   useEffect(() => {
-    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    if (!editor) return;
 
-    console.log("🔄 VALUE PROP CHANGED", {
-      path,
-      valueLength: value?.length,
-      cursorNow: editorRef.current.getPosition(),
-      modelId: editorRef.current.getModel()?.id,
-    });
-  }, [value, path]);
+    const monaco = (window as any).monaco;
+    if (!monaco) return;
+
+    let model = modelsRef.current.get(path);
+    if (!model) {
+      model = monaco.editor.createModel(
+        value ?? "",
+        path.endsWith(".ts") || path.endsWith(".tsx")
+          ? "typescript"
+          : "javascript",
+        monaco.Uri.file(path)
+      );
+      modelsRef.current.set(path, model);
+    }
+
+    if (editor.getModel() !== model) {
+      editor.setModel(model);
+    }
+  }, [path]);
+
+  /* ─────────────────────────────
+     🔥 MENU COMMAND HANDLER
+     ───────────────────────────── */
+  useEffect(() => {
+    const handler = async (e: CustomEvent<{ action: string }>) => {
+      const editor = editorRef.current;
+
+      console.group("🧨 MENU COMMAND");
+      console.log("Action:", e.detail.action);
+
+      if (!editor) {
+        console.error("❌ NO EDITOR REF");
+        console.groupEnd();
+        return;
+      }
+
+      editor.focus();
+
+      switch (e.detail.action) {
+        case "undo":
+          editor.trigger("menu", "undo", null);
+          break;
+
+        case "redo":
+          editor.trigger("menu", "redo", null);
+          break;
+
+        case "cut":
+          if (lastSelectedTextRef.current) {
+            await navigator.clipboard.writeText(
+              lastSelectedTextRef.current
+            );
+            editor.executeEdits("cut", [
+              { range: lastSelectionRef.current, text: "" },
+            ]);
+          }
+          break;
+
+        case "copy":
+          await navigator.clipboard.writeText(
+            lastSelectedTextRef.current
+          );
+          break;
+
+        case "paste": {
+          const text = await navigator.clipboard.readText();
+          const range = editor.getSelection();
+          if (!text || !range) break;
+
+          editor.executeEdits("paste", [
+            { range, text, forceMoveMarkers: true },
+          ]);
+          break;
+        }
+      }
+
+      console.groupEnd();
+    };
+
+    window.addEventListener(
+      "editor-command",
+      handler as unknown as EventListener
+    );
+
+    return () =>
+      window.removeEventListener(
+        "editor-command",
+        handler as unknown as EventListener
+      );
+  }, []);
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0">
         <MonacoEditor
           height="100%"
-          language={
-            path.endsWith(".ts") || path.endsWith(".tsx")
-              ? "typescript"
-              : "javascript"
-          }
-          value={value}
           theme={theme}
           onMount={handleEditorMount}
           onChange={(val) => {
@@ -164,19 +252,9 @@ export default function Editor({
             const normalizedNext = normalize(val);
             const normalizedSaved = normalize(tab.savedContent);
 
-            const isDirty = normalizedNext !== normalizedSaved;
-
-            console.log("🔥 DIRTY CHECK", {
-              path: tab.path,
-              nextLength: normalizedNext.length,
-              savedLength: normalizedSaved.length,
-              equal: normalizedNext === normalizedSaved,
-              DIRTY_RESULT: isDirty,
-            });
-
             store.updateTab(index, {
               content: normalizedNext,
-              dirty: isDirty,
+              dirty: normalizedNext !== normalizedSaved,
             });
 
             workflowOnChange(path, val);
@@ -192,10 +270,7 @@ export default function Editor({
         />
       </div>
 
-      <div
-        className="h-5 shrink-0 px-2 text-xs flex items-center truncate
-                   bg-muted text-muted border-t border-default"
-      >
+      <div className="h-5 shrink-0 px-2 text-xs flex items-center truncate bg-muted text-muted border-t border-default">
         {path}
       </div>
     </div>

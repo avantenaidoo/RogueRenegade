@@ -16,12 +16,12 @@ export const menus = [
   {
     label: "Edit",
     items: [
-      { label: "Undo" },
-      { label: "Redo" },
+      { label: "Undo", action: "undo" },
+      { label: "Redo", action: "redo" },
       { type: "separator" },
-      { label: "Cut" },
-      { label: "Copy" },
-      { label: "Paste" }
+      { label: "Cut", action: "cut" },
+      { label: "Copy", action: "copy" },
+      { label: "Paste", action: "paste" }
     ]
   },
   { label: "Selection", items: [] },

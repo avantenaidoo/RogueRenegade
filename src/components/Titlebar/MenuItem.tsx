@@ -40,9 +40,29 @@ export function MenuItem({ item, closeMenu }: any) {
       className="relative px-3 py-1 flex justify-between hover:bg-neutral-500 cursor-pointer"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
-      onClick={() => {
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         if (!item.submenu) {
-          runMenuAction(item.action);
+          const editorActions = [
+            "undo",
+            "redo",
+            "cut",
+            "copy",
+            "paste",
+          ];
+
+          if (item.action && editorActions.includes(item.action)) {
+            window.dispatchEvent(
+              new CustomEvent("editor-command", {
+                detail: { action: item.action },
+              })
+            );
+          } else {
+            runMenuAction(item.action);
+          }
+
           closeMenu();
         }
       }}
@@ -52,13 +72,13 @@ export function MenuItem({ item, closeMenu }: any) {
 
       {item.submenu && open && (
         <div className="absolute left-full top-0 bg-default border-zinc-700 min-w-65 z-50">
-
           {/* ───── RECENT FOLDERS ───── */}
           {recentFolders.map(path => (
             <div
               key={path}
               className="px-3 py-1 hover:bg-neutral-500 cursor-pointer truncate"
               onClick={async (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 closeMenu();
 
@@ -82,6 +102,7 @@ export function MenuItem({ item, closeMenu }: any) {
               key={path}
               className="px-3 py-1 hover:bg-neutral-500 cursor-pointer truncate"
               onClick={async (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 closeMenu();
 
@@ -95,7 +116,6 @@ export function MenuItem({ item, closeMenu }: any) {
               {path}
             </div>
           ))}
-
         </div>
       )}
     </div>
