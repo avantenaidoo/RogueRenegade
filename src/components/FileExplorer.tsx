@@ -24,6 +24,10 @@ export default function FileExplorer() {
   const repoPath = useEditorStore((s) => s.repoPath);
   const addTab = useEditorStore((s) => s.addTab);
 
+  const workspaceName = repoPath
+    ? repoPath.replace(/\\/g, "/").split("/").pop()
+    : null;
+
   async function loadDir(dirPath: string): Promise<FileNode[]> {
     const entries = await readDir(dirPath);
 
@@ -130,7 +134,7 @@ export default function FileExplorer() {
       {repoPath && (
         <>
           <div className="font-semibold mb-2">
-            📦 {repoPath.split("/").pop()}
+            📦 {workspaceName}
           </div>
           {renderNodes(tree)}
         </>
