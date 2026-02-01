@@ -13,6 +13,15 @@ interface FileTab {
   };
 }
 
+/* ───────────────────────────────────────────── */
+/* 🔥🔥🔥 CHAT TYPES — ADD ONLY 🔥🔥🔥 */
+/* ───────────────────────────────────────────── */
+interface ChatTab {
+  id: string;
+  title: string;
+}
+/* ───────────────────────────────────────────── */
+
 interface EditorState {
   /* ───── EDITOR ───── */
   tabs: FileTab[];
@@ -34,6 +43,17 @@ interface EditorState {
   showCollaboration: boolean;
   setShowCollaboration: (open: boolean) => void;
   toggleCollaboration: () => void;
+
+  /* ───────────────────────────────────────────── */
+  /* 🔥🔥🔥 CHAT STATE — ADD ONLY 🔥🔥🔥 */
+  /* ───────────────────────────────────────────── */
+  chatTabs: ChatTab[];
+  activeChatId: string;
+
+  addChatTab: () => void;
+  setActiveChat: (id: string) => void;
+  closeChatTab: (id: string) => void;
+  /* ───────────────────────────────────────────── */
 
   /* ───── RECENTS ───── */
   recentFolders: string[];
@@ -203,6 +223,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setShowCollaboration: open => set({ showCollaboration: open }),
   toggleCollaboration: () =>
     set(state => ({ showCollaboration: !state.showCollaboration })),
+
+  /* ───────────────────────────────────────────── */
+  /* 🔥🔥🔥 CHAT STATE — ADD ONLY 🔥🔥🔥 */
+  /* ───────────────────────────────────────────── */
+  chatTabs: [{ id: "chat-1", title: "Chat 1" }],
+  activeChatId: "chat-1",
+
+  addChatTab: () =>
+    set(state => {
+      const id = `chat-${Date.now()}`;
+      return {
+        chatTabs: [
+          ...state.chatTabs,
+          { id, title: `Chat ${state.chatTabs.length + 1}` },
+        ],
+        activeChatId: id,
+      };
+    }),
+
+  setActiveChat: id => set({ activeChatId: id }),
+
+  closeChatTab: id =>
+    set(state => {
+      const remaining = state.chatTabs.filter(t => t.id !== id);
+
+      return {
+        chatTabs: remaining,
+        activeChatId:
+          state.activeChatId === id
+            ? remaining[remaining.length - 1]?.id ?? ""
+            : state.activeChatId,
+      };
+    }),
+  /* ───────────────────────────────────────────── */
 
   /* ───── RECENTS ───── */
   recentFolders: JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY) || "[]"),

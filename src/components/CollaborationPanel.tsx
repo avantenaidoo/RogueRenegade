@@ -6,11 +6,6 @@ import {
 } from "../utils/collaboration";
 import { useEditorStore } from "../store";
 
-interface ChatTab {
-  id: string;
-  title: string;
-}
-
 export default function CollaborationPanel({
   username,
   roomId,
@@ -20,11 +15,12 @@ export default function CollaborationPanel({
 }) {
   const [users, setUsers] = useState<string[]>([]);
 
-  /* ───── CHAT TABS (LOCAL, LIKE EDITOR TABS) ───── */
-  const [chatTabs, setChatTabs] = useState<ChatTab[]>([
-    { id: "chat-1", title: "Chat 1" },
-  ]);
-  const [activeChatId, setActiveChatId] = useState("chat-1");
+  /* ───── CHAT TABS (GLOBAL, UI ONLY) ───── */
+  const chatTabs = useEditorStore(state => state.chatTabs);
+  const activeChatId = useEditorStore(state => state.activeChatId);
+  const addChatTab = useEditorStore(state => state.addChatTab);
+  const setActiveChat = useEditorStore(state => state.setActiveChat);
+  const closeChatTab = useEditorStore(state => state.closeChatTab);
 
   const toggleCollaboration = useEditorStore(
     state => state.toggleCollaboration
@@ -43,9 +39,7 @@ export default function CollaborationPanel({
   /* ───── ACTIONS ───── */
 
   const createNewChat = () => {
-    const id = `chat-${Date.now()}`;
-    setChatTabs(tabs => [...tabs, { id, title: `Chat ${tabs.length + 1}` }]);
-    setActiveChatId(id);
+    addChatTab();
   };
 
   const openChatSettings = () => {
@@ -63,7 +57,6 @@ export default function CollaborationPanel({
         <span className="font-semibold uppercase tracking-wide">Chat</span>
 
         <div className="flex items-center gap-1">
-          {/* NEW CHAT */}
           <button
             title="New Chat"
             className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
@@ -72,7 +65,6 @@ export default function CollaborationPanel({
             +
           </button>
 
-          {/* SETTINGS */}
           <button
             title="Chat Settings"
             className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
@@ -81,7 +73,6 @@ export default function CollaborationPanel({
             ⚙
           </button>
 
-          {/* MAXIMIZE */}
           <button
             title="Maximize Chat"
             className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
@@ -90,7 +81,7 @@ export default function CollaborationPanel({
             ⤢
           </button>
 
-          {/* CLOSE PANEL */}
+          {/* CLOSE PANEL — VISIBILITY ONLY */}
           <button
             title="Close Chat"
             className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
@@ -104,18 +95,29 @@ export default function CollaborationPanel({
       {/* ───────── CHAT TABS ───────── */}
       <div className="h-8 flex border-b border-default overflow-x-auto">
         {chatTabs.map(tab => (
-          <button
+          <div
             key={tab.id}
-            onClick={() => setActiveChatId(tab.id)}
-            className={`px-3 text-xs flex items-center
+            className={`group flex items-center text-xs px-2 cursor-pointer
               ${
                 tab.id === activeChatId
                   ? "bg-(--foreground)/65 text-(--background) border-b-2 border-blue-500"
                   : "hover:bg-neutral-500"
               }`}
+            onClick={() => setActiveChat(tab.id)}
           >
-            {tab.title}
-          </button>
+            <span className="mr-2">{tab.title}</span>
+
+            {/* CLOSE TAB (UI ONLY) */}
+            <button
+              className="opacity-0 group-hover:opacity-100 ml-1 text-xs hover:text-red-400"
+              onClick={e => {
+                e.stopPropagation();
+                closeChatTab(tab.id);
+              }}
+            >
+              ×
+            </button>
+          </div>
         ))}
       </div>
 
