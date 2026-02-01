@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { MenuBar } from "./Menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useEditorStore } from "../../store";
 
 const appWindow = getCurrentWindow();
 
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+  const repoPath = useEditorStore(state => state.repoPath);
 
   useEffect(() => {
     // Initial state
@@ -21,6 +23,10 @@ export default function TitleBar() {
       unlisten.then(f => f());
     };
   }, []);
+
+  const folderName = repoPath
+    ? repoPath.split(/[\\/]/).pop()
+    : "No Folder";
 
   return (
     <div
@@ -39,9 +45,13 @@ export default function TitleBar() {
         <MenuBar />
       </div>
 
-      {/* CENTER */}
-      <div data-tauri-drag-region className="text-xs text-muted">
-        rogue-renegade-ide
+      {/* CENTER — VS CODE STYLE */}
+      <div
+        data-tauri-drag-region
+        className="flex items-center gap-2 text-xs text-muted"
+      >
+        <span>{folderName}</span>
+        <span className="opacity-70">🔍</span>
       </div>
 
       {/* RIGHT — WINDOW CONTROLS */}
