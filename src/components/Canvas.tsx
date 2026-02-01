@@ -1,4 +1,3 @@
-// src/components/Canvas.tsx
 import React, { useEffect, useState } from "react";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 
@@ -31,6 +30,9 @@ export const Canvas: React.FC = () => {
   const [collabWidth, setCollabWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
 
+  /* 🔥🔥🔥 CHAT MAXIMIZE STATE (THIS WAS MISSING) 🔥🔥🔥 */
+  const [isChatMaximized, setIsChatMaximized] = useState(false);
+
   const activeTab = tabs[activeTabIndex];
 
   /* ───────────── THEME ───────────── */
@@ -57,7 +59,7 @@ export const Canvas: React.FC = () => {
   /* ───────────── RESIZE HANDLING ───────────── */
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
-      if (!isResizing) return;
+      if (!isResizing || isChatMaximized) return;
 
       const newWidth = window.innerWidth - e.clientX;
       if (newWidth >= 240 && newWidth <= 600) {
@@ -78,7 +80,7 @@ export const Canvas: React.FC = () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [isResizing]);
+  }, [isResizing, isChatMaximized]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
@@ -88,77 +90,88 @@ export const Canvas: React.FC = () => {
       {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT — FILE EXPLORER */}
-        <div className="w-60 border-r overflow-auto">
-          <FileExplorer />
-        </div>
+        {!isChatMaximized && (
+          <div className="w-60 border-r overflow-auto">
+            <FileExplorer />
+          </div>
+        )}
 
         {/* CENTER — EDITOR */}
-        <div className="flex flex-col flex-1 min-w-0">
-          {/* TABS */}
-          <div className="h-9 flex border-b shrink-0 overflow-x-auto">
-            {tabs.map((tab, i) => (
-              <div
-                key={tab.path}
-                onClick={() => setActiveTab(i)}
-                className={`flex items-center gap-2 px-3 text-sm cursor-pointer
-                  ${
-                    i === activeTabIndex
-                      ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
-                      : "bg-transparent text-default hover:bg-neutral-500"
-                  }`}
-              >
-                <span className="truncate max-w-40">
-                  {tab.path.split(/[\\/]/).pop()}
-                </span>
-
-                {tab.dirty && (
-                  <span className="w-2 h-2 rounded-full bg-red-500" />
-                )}
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(i);
-                  }}
+        {!isChatMaximized && (
+          <div className="flex flex-col flex-1 min-w-0">
+            {/* TABS */}
+            <div className="h-9 flex border-b shrink-0 overflow-x-auto">
+              {tabs.map((tab, i) => (
+                <div
+                  key={tab.path}
+                  onClick={() => setActiveTab(i)}
+                  className={`flex items-center gap-2 px-3 text-sm cursor-pointer
+                    ${
+                      i === activeTabIndex
+                        ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
+                        : "bg-transparent text-default hover:bg-neutral-500"
+                    }`}
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
+                  <span className="truncate max-w-40">
+                    {tab.path.split(/[\\/]/).pop()}
+                  </span>
 
-          {/* EDITOR */}
-          <div className="flex-1 min-h-0">
-            {activeTab && (
-              <Editor
-                value={activeTab.content}
-                path={activeTab.path}
-                theme={theme}
-                onChange={(val) => {
-                  updateTab(activeTabIndex, { content: val ?? "" });
-                }}
-              />
-            )}
+                  {tab.dirty && (
+                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                  )}
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeTab(i);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* EDITOR */}
+            <div className="flex-1 min-h-0">
+              {activeTab && (
+                <Editor
+                  value={activeTab.content}
+                  path={activeTab.path}
+                  theme={theme}
+                  onChange={(val) => {
+                    updateTab(activeTabIndex, { content: val ?? "" });
+                  }}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 🔥 RIGHT — COLLABORATION PANEL */}
         {showCollaboration && (
           <div
             className="flex border-l bg-muted overflow-hidden"
-            style={{ width: collabWidth }}
+            style={{
+              width: isChatMaximized ? "100%" : collabWidth,
+            }}
           >
-            {/* RESIZE HANDLE */}
-            <div
-              className="w-1 cursor-col-resize hover:bg-blue-500/40"
-              onMouseDown={() => setIsResizing(true)}
-            />
+            {/* RESIZE HANDLE (DISABLED WHEN MAXIMIZED) */}
+            {!isChatMaximized && (
+              <div
+                className="w-1 cursor-col-resize hover:bg-blue-500/40"
+                onMouseDown={() => setIsResizing(true)}
+              />
+            )}
 
             {/* PANEL CONTENT */}
             <div className="flex-1 overflow-hidden">
               <CollaborationPanel
                 username="local-user"
                 roomId="workspace"
+                onToggleMaximize={() =>
+                  setIsChatMaximized(v => !v)
+                }
               />
             </div>
           </div>
@@ -166,27 +179,31 @@ export const Canvas: React.FC = () => {
       </div>
 
       {/* BOTTOM PANEL */}
-      <div className="h-40 border-t flex">
-        <div className="flex-1 overflow-auto">
-          {showSettings ? (
-            <SettingsPanel theme={theme} setTheme={setTheme} />
-          ) : (
-            <GitPanel />
-          )}
-        </div>
+      {!isChatMaximized && (
+        <div className="h-40 border-t flex">
+          <div className="flex-1 overflow-auto">
+            {showSettings ? (
+              <SettingsPanel theme={theme} setTheme={setTheme} />
+            ) : (
+              <GitPanel />
+            )}
+          </div>
 
-        <div className="w-32 border-l flex items-center justify-center">
-          <button onClick={() => setShowSettings(v => !v)}>
-            {showSettings ? "Git" : "Settings"}
-          </button>
+          <div className="w-32 border-l flex items-center justify-center">
+            <button onClick={() => setShowSettings(v => !v)}>
+              {showSettings ? "Git" : "Settings"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* STATUS BAR */}
-      <div className="h-6 border-t flex shrink-0">
-        <GitStatus />
-        <StatusBar />
-      </div>
+      {!isChatMaximized && (
+        <div className="h-6 border-t flex shrink-0">
+          <GitStatus />
+          <StatusBar />
+        </div>
+      )}
     </div>
   );
 };

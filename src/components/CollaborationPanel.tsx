@@ -9,9 +9,11 @@ import { useEditorStore } from "../store";
 export default function CollaborationPanel({
   username,
   roomId,
+  onToggleMaximize, // 🔥 ADD ONLY
 }: {
   username: string;
   roomId: string;
+  onToggleMaximize?: () => void; // 🔥 ADD ONLY
 }) {
   const [users, setUsers] = useState<string[]>([]);
 
@@ -47,7 +49,7 @@ export default function CollaborationPanel({
   };
 
   const toggleChatMaximized = () => {
-    console.log("Toggle chat maximize (stub)");
+    onToggleMaximize?.(); // 🔥 THIS IS THE ENTIRE FIX
   };
 
   return (

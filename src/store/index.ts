@@ -53,6 +53,10 @@ interface EditorState {
   addChatTab: () => void;
   setActiveChat: (id: string) => void;
   closeChatTab: (id: string) => void;
+
+  /* 🔥🔥🔥 CHAT PANEL LAYOUT STATE — ADD ONLY 🔥🔥🔥 */
+  isChatMaximized: boolean;
+  toggleChatMaximized: () => void;
   /* ───────────────────────────────────────────── */
 
   /* ───── RECENTS ───── */
@@ -256,6 +260,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             : state.activeChatId,
       };
     }),
+
+  /* 🔥🔥🔥 CHAT PANEL LAYOUT STATE — ADD ONLY 🔥🔥🔥 */
+  isChatMaximized: false,
+
+  toggleChatMaximized: () =>
+    set(state => ({
+      isChatMaximized: !state.isChatMaximized,
+    })),
   /* ───────────────────────────────────────────── */
 
   /* ───── RECENTS ───── */
