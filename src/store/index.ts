@@ -30,6 +30,11 @@ interface EditorState {
   repoPath: string | null;
   setRepoPath: (path: string) => void;
 
+  /* ───── COLLABORATION UI ───── */
+  showCollaboration: boolean;
+  setShowCollaboration: (open: boolean) => void;
+  toggleCollaboration: () => void;
+
   /* ───── RECENTS ───── */
   recentFolders: string[];
   recentFiles: string[];
@@ -59,7 +64,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabIndex: 0,
 
-  /* ✅ EDITED */
   addTab: (path, content) => {
     const existingIndex = get().tabs.findIndex(t => t.path === path);
     if (existingIndex >= 0) {
@@ -74,7 +78,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         {
           path,
           content,
-          savedContent: normalize(content), // ✅ FIXED — WAS contents
+          savedContent: normalize(content),
           branch: null,
           dirty: false,
         },
@@ -96,7 +100,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  /* ✅ EDITED — DIRTY IS DERIVED */
   updateTab: (index, updates) =>
     set(state => {
       const tabs = [...state.tabs];
@@ -131,11 +134,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...updates,
           content: nextContent,
           savedContent: nextSaved,
-          dirty: nextContent !== nextSaved, // 🔥 THE FIX
+          dirty: nextContent !== nextSaved,
         };
       }
 
-      /* cursor persistence stays */
       if (updates.cursor) {
         const map = JSON.parse(
           localStorage.getItem(CURSOR_MAP_KEY) || "{}"
@@ -178,7 +180,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { tabs, activeTabIndex: Math.max(newIndex, 0) };
     }),
 
-  /* left intact (now optional / harmless) */
   markDirty: path =>
     set(state => ({
       tabs: state.tabs.map(tab =>
@@ -196,6 +197,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   /* ───── WORKSPACE ───── */
   repoPath: null,
   setRepoPath: path => set({ repoPath: path }),
+
+  /* ───── COLLABORATION UI ───── */
+  showCollaboration: false,
+  setShowCollaboration: open => set({ showCollaboration: open }),
+  toggleCollaboration: () =>
+    set(state => ({ showCollaboration: !state.showCollaboration })),
 
   /* ───── RECENTS ───── */
   recentFolders: JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY) || "[]"),
@@ -227,7 +234,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ recentFiles: next });
   },
 
-  /* ✅ EDITED */
   restoreTabs: async () => {
     const rawTabs = JSON.parse(
       localStorage.getItem(OPEN_TABS_KEY) || "[]"
@@ -251,7 +257,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         restored.push({
           path,
           content: contents,
-          savedContent: normalize(contents), // 🔥 baseline restored
+          savedContent: normalize(contents),
           branch: null,
           dirty: false,
           cursor: cursorMap[path],

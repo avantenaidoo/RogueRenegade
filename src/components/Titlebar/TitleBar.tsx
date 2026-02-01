@@ -8,12 +8,16 @@ const appWindow = getCurrentWindow();
 export default function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const repoPath = useEditorStore(state => state.repoPath);
+  const toggleCollaboration = useEditorStore(
+    state => state.toggleCollaboration
+  );
+  const showCollaboration = useEditorStore(
+    state => state.showCollaboration
+  );
 
   useEffect(() => {
-    // Initial state
     appWindow.isMaximized().then(setIsMaximized);
 
-    // Listen for resize/maximize changes
     const unlisten = appWindow.onResized(async () => {
       const maximized = await appWindow.isMaximized();
       setIsMaximized(maximized);
@@ -23,6 +27,22 @@ export default function TitleBar() {
       unlisten.then(f => f());
     };
   }, []);
+
+  /* 🔥 KEYBOARD SHORTCUT — Ctrl/Cmd + Shift + C */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+
+      if (mod && e.shiftKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        toggleCollaboration();
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggleCollaboration]);
 
   const folderName = repoPath
     ? repoPath.split(/[\\/]/).pop()
@@ -52,11 +72,34 @@ export default function TitleBar() {
       >
         <span>{folderName}</span>
         <span className="opacity-70">🔍</span>
+
+        <button
+          data-tauri-drag-region={false}
+          title="Collaboration (Ctrl+Shift+C)"
+          className="relative w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
+          onClick={toggleCollaboration}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+
+          {showCollaboration && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500" />
+          )}
+        </button>
       </div>
 
       {/* RIGHT — WINDOW CONTROLS */}
       <div className="flex">
-        {/* MINIMIZE */}
         <button
           data-tauri-drag-region={false}
           className="w-10 h-9 flex items-center justify-center hover:bg-neutral-500"
@@ -65,7 +108,6 @@ export default function TitleBar() {
           —
         </button>
 
-        {/* MAXIMIZE / RESTORE */}
         <button
           data-tauri-drag-region={false}
           className="w-10 h-9 flex items-center justify-center hover:bg-neutral-500"
@@ -74,7 +116,6 @@ export default function TitleBar() {
           {isMaximized ? "🗗" : "▢"}
         </button>
 
-        {/* CLOSE */}
         <button
           data-tauri-drag-region={false}
           className="w-10 h-9 flex items-center justify-center hover:bg-red-600"
