@@ -1,71 +1,54 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import Workspace from "@/pages/Workspace";
 
-/**
- * TEMP auth states for STEP 1
- * These will be replaced with real logic in STEP 2
- */
-type AuthState =
-  | "checking"
-  | "unauthenticated"
-  | "pending"
-  | "approved"
-  | "rejected";
+type AuthState = {
+  is_authenticated: boolean;
+  active_account_id: string | null;
+};
 
 export default function AuthGate() {
-  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [loading, setLoading] = useState(true);
+  const [auth, setAuth] = useState<AuthState | null>(null);
 
   useEffect(() => {
-    // 🔐 STEP 1: Stubbed auth check
-    // In STEP 2 this will call Tauri securely
-    console.log("🔐 Checking auth status...");
-
-    setTimeout(() => {
-      // CHANGE THIS VALUE TO TEST FLOWS
-      setAuthState("unauthenticated");
-      // setAuthState("approved");
-      // setAuthState("pending");
-      // setAuthState("rejected");
-    }, 500);
+    (async () => {
+      const state = await invoke<AuthState>("get_auth_state");
+      setAuth(state);
+      setLoading(false);
+    })();
   }, []);
 
-  if (authState === "checking") {
+  if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center text-muted-foreground">
-        Checking authentication…
+      <div className="h-screen flex items-center justify-center text-xl">
+        Initializing…
       </div>
     );
   }
 
-  if (authState === "unauthenticated") {
+  if (!auth?.is_authenticated) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-xl font-semibold">Authentication Required</h1>
-        <p>You must sign in to use this application.</p>
+      <div className="h-screen flex items-center justify-center">
+        <div className="border p-6 rounded w-90">
+          <h2 className="text-lg font-semibold mb-4">Sign in required</h2>
+
+          <button
+            className="w-full bg-black text-white py-2 rounded"
+            onClick={async () => {
+              // TEMP LOGIN (DEV ONLY)
+              await invoke("set_authenticated", {
+                accountId: "dev-account",
+              });
+              window.location.reload();
+            }}
+          >
+            Dev Login
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (authState === "pending") {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-xl font-semibold">Awaiting Approval</h1>
-        <p>Your account is pending authorization.</p>
-      </div>
-    );
-  }
-
-  if (authState === "rejected") {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center gap-4">
-        <h1 className="text-xl font-semibold text-red-500">
-          Access Denied
-        </h1>
-        <p>You have not been authorized to use this application.</p>
-      </div>
-    );
-  }
-
-  // ✅ ONLY approved users reach here
   return <Workspace />;
 }
