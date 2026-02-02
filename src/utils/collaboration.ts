@@ -55,3 +55,50 @@ export function onPresenceUpdate(
 ) {
   socket.on("presenceUpdate", callback);
 }
+
+/* =========================================================
+   🔥🔥🔥 CHAT SYNC — STEP 4B (ADD ONLY)
+   ========================================================= */
+
+export type NetworkChatMessage = {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  attachments: {
+    path: string;
+    name: string;
+  }[];
+  timestamp: number;
+};
+
+/* SEND chat message to other users */
+export function sendChatMessage(message: NetworkChatMessage) {
+  socket.emit("chatMessage", message);
+}
+
+/* RECEIVE chat messages from other users */
+export function onChatMessage(
+  callback: (message: NetworkChatMessage) => void
+) {
+  socket.on("chatMessage", (message: NetworkChatMessage) => {
+    callback(message);
+  });
+}
+
+/* =========================================================
+   🔥 STEP 6 — TYPING INDICATORS (ADD ONLY)
+   ========================================================= */
+
+export function sendTyping(chatId: string, isTyping: boolean) {
+  socket.emit("typing", { chatId, isTyping });
+}
+
+export function onTyping(
+  callback: (chatId: string, user: string, isTyping: boolean) => void
+) {
+  socket.on("typing", ({ chatId, user, isTyping }) => {
+    callback(chatId, user, isTyping);
+  });
+}

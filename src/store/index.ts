@@ -19,8 +19,43 @@ interface FileTab {
 interface ChatTab {
   id: string;
   title: string;
+  messages: ChatMessage[];
+  draft: string;
+  attachments: ChatAttachment[];
+}
+
+/* ───────────────────────────────────────────── */
+/* 🔥🔥🔥 CHAT MESSAGE TYPES — ADD ONLY 🔥🔥🔥 */
+/* ───────────────────────────────────────────── */
+
+interface ChatAttachment {
+  path: string;
+  name: string;
+}
+
+interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  attachments: ChatAttachment[];
+  timestamp: number;
 }
 /* ───────────────────────────────────────────── */
+
+export interface Collaborator {
+  id: string;
+  name: string;
+}
+
+/* 🔥🔥🔥 REMOTE CURSOR TYPE — ADD ONLY 🔥🔥🔥 */
+export interface RemoteCursor {
+  userId: string;
+  file: string;
+  lineNumber: number;
+  column: number;
+}
 
 interface EditorState {
   /* ───── EDITOR ───── */
@@ -54,9 +89,23 @@ interface EditorState {
   setActiveChat: (id: string) => void;
   closeChatTab: (id: string) => void;
 
+  addChatMessage: (chatId: string, message: ChatMessage) => void;
+  updateChatDraft: (chatId: string, draft: string) => void;
+  addChatAttachment: (chatId: string, attachment: ChatAttachment) => void;
+  clearChatInput: (chatId: string) => void;
+
   /* 🔥🔥🔥 CHAT PANEL LAYOUT STATE — ADD ONLY 🔥🔥🔥 */
   isChatMaximized: boolean;
   toggleChatMaximized: () => void;
+  /* ───────────────────────────────────────────── */
+
+  /* 🔥🔥🔥 COLLAB USERS — ADD ONLY 🔥🔥🔥 */
+  users: Collaborator[];
+  setUsers: (users: Collaborator[]) => void;
+
+  /* 🔥🔥🔥 REMOTE CURSORS — ADD ONLY 🔥🔥🔥 */
+  remoteCursors: Record<string, RemoteCursor>;
+  setRemoteCursor: (cursor: RemoteCursor) => void;
   /* ───────────────────────────────────────────── */
 
   /* ───── RECENTS ───── */
@@ -228,10 +277,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleCollaboration: () =>
     set(state => ({ showCollaboration: !state.showCollaboration })),
 
-  /* ───────────────────────────────────────────── */
-  /* 🔥🔥🔥 CHAT STATE — ADD ONLY 🔥🔥🔥 */
-  /* ───────────────────────────────────────────── */
-  chatTabs: [{ id: "chat-1", title: "Chat 1" }],
+  /* 🔥🔥🔥 CHAT STATE — UNTOUCHED 🔥🔥🔥 */
+  chatTabs: [
+    {
+      id: "chat-1",
+      title: "Chat 1",
+      messages: [],
+      draft: "",
+      attachments: [],
+    },
+  ],
   activeChatId: "chat-1",
 
   addChatTab: () =>
@@ -240,7 +295,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         chatTabs: [
           ...state.chatTabs,
-          { id, title: `Chat ${state.chatTabs.length + 1}` },
+          {
+            id,
+            title: `Chat ${state.chatTabs.length + 1}`,
+            messages: [],
+            draft: "",
+            attachments: [],
+          },
         ],
         activeChatId: id,
       };
@@ -251,7 +312,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   closeChatTab: id =>
     set(state => {
       const remaining = state.chatTabs.filter(t => t.id !== id);
-
       return {
         chatTabs: remaining,
         activeChatId:
@@ -261,14 +321,58 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
-  /* 🔥🔥🔥 CHAT PANEL LAYOUT STATE — ADD ONLY 🔥🔥🔥 */
-  isChatMaximized: false,
-
-  toggleChatMaximized: () =>
+  addChatMessage: (chatId, message) =>
     set(state => ({
-      isChatMaximized: !state.isChatMaximized,
+      chatTabs: state.chatTabs.map(t =>
+        t.id === chatId
+          ? { ...t, messages: [...t.messages, message] }
+          : t
+      ),
     })),
-  /* ───────────────────────────────────────────── */
+
+  updateChatDraft: (chatId, draft) =>
+    set(state => ({
+      chatTabs: state.chatTabs.map(t =>
+        t.id === chatId ? { ...t, draft } : t
+      ),
+    })),
+
+  addChatAttachment: (chatId, attachment) =>
+    set(state => ({
+      chatTabs: state.chatTabs.map(t =>
+        t.id === chatId
+          ? { ...t, attachments: [...t.attachments, attachment] }
+          : t
+      ),
+    })),
+
+  clearChatInput: chatId =>
+    set(state => ({
+      chatTabs: state.chatTabs.map(t =>
+        t.id === chatId
+          ? { ...t, draft: "", attachments: [] }
+          : t
+      ),
+    })),
+
+  /* 🔥🔥🔥 CHAT PANEL LAYOUT STATE — UNTOUCHED 🔥🔥🔥 */
+  isChatMaximized: false,
+  toggleChatMaximized: () =>
+    set(state => ({ isChatMaximized: !state.isChatMaximized })),
+
+  /* 🔥🔥🔥 USERS — ADDED 🔥🔥🔥 */
+  users: [],
+  setUsers: users => set({ users }),
+
+  /* 🔥🔥🔥 REMOTE CURSORS — ADDED 🔥🔥🔥 */
+  remoteCursors: {},
+  setRemoteCursor: cursor =>
+    set(state => ({
+      remoteCursors: {
+        ...state.remoteCursors,
+        [cursor.userId]: cursor,
+      },
+    })),
 
   /* ───── RECENTS ───── */
   recentFolders: JSON.parse(localStorage.getItem(RECENT_FOLDERS_KEY) || "[]"),
