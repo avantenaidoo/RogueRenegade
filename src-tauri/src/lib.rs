@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
    AUTH MODELS
    ───────────────────────────── */
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 enum AccountStatus {
     Pending,
     Approved,
@@ -36,20 +36,7 @@ mod menu;
 /* ─────────────────────────────
    AUTH STATE
    ───────────────────────────── */
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct AuthState {
-    is_authenticated: bool,
-    active_account_id: Option<String>,
-    accounts: Vec<UserAccount>,
-}
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct UserAccount {
-    id: String,
-    username: String,
-    email: String,
-    approved: bool,
-}
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -79,6 +66,75 @@ struct LastSession {
     #[serde(default)]
     cursors: Vec<CursorEntry>,
 }
+
+/* ─────────────────────────────
+   USER / ACCOUNT MODELS
+   ───────────────────────────── */
+
+    #[derive(Serialize)]
+    struct SignupResponse {
+        success: bool,
+        message: String,
+    }
+
+
+   #[derive(Serialize, Deserialize, Clone)]
+pub enum ApprovalStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Account {
+    pub account_id: String,
+    pub username: String,
+    pub created_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct User {
+    pub user_id: String,
+    pub email: String,
+    pub password_hash: String,
+    pub approval_status: ApprovalStatus,
+    pub accounts: Vec<Account>,
+    pub created_at: String,
+}
+
+
+/* ─────────────────────────────
+   USER STORAGE HELPERS
+   ───────────────────────────── */
+
+fn users_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("users.json"))
+}
+
+fn load_users(app: &AppHandle) -> Result<Vec<User>, String> {
+    let path = users_path(app)?;
+
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+
+    let contents = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let users: Vec<User> = serde_json::from_str(&contents).map_err(|e| e.to_string())?;
+    Ok(users)
+}
+
+fn save_users(app: &AppHandle, users: &Vec<User>) -> Result<(), String> {
+    let path = users_path(app)?;
+
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(users).unwrap(),
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 
 /* ─────────────────────────────
    GREET COMMAND
@@ -213,10 +269,207 @@ fn frontend_log(message: String) {
    AUTH COMMANDS
    ───────────────────────────── */
 
+   #[tauri::command]
+fn signup_user(
+    app: AppHandle,
+    email: String,
+    username: String,
+    password_hash: String,
+) -> Result<SignupResponse, String> {
+    let mut users = load_users(&app)?;
+
+    if users.iter().any(|u| u.email == email) {
+        return Ok(SignupResponse {
+            success: false,
+            message: "Email already registered".into(),
+        });
+    }
+
+    if users.iter().any(|u| {
+        u.accounts.iter().any(|a| a.username == username)
+    }) {
+        return Ok(SignupResponse {
+            success: false,
+            message: "Username already taken".into(),
+        });
+    }
+
+    let account = Account {
+        account_id: uuid::Uuid::new_v4().to_string(),
+        username,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    let user = User {
+        user_id: uuid::Uuid::new_v4().to_string(),
+        email,
+        password_hash,
+        approval_status: ApprovalStatus::Pending,
+        accounts: vec![account],
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+
+    users.push(user);
+    save_users(&app, &users)?;
+
+    Ok(SignupResponse {
+        success: true,
+        message: "Signup successful. Awaiting approval.".into(),
+    })
+}
+
+#[derive(Serialize)]
+struct LoginResponse {
+    success: bool,
+    message: String,
+    accounts: Vec<StoredAccount>,
+}
+
+#[tauri::command]
+fn login_user(
+    app: AppHandle,
+    identifier: String, // email OR username
+    password_hash: String,
+) -> Result<LoginResponse, String> {
+
+    let users = load_users(&app)?;
+
+    let user = users
+    .iter()
+    .find(|u| {
+        u.email == identifier
+            || u.accounts.iter().any(|a| a.username == identifier)
+    })
+    .ok_or("User not found")?;
+
+    if user.password_hash != password_hash {
+        return Ok(LoginResponse {
+            success: false,
+            message: "Invalid password".into(),
+            accounts: vec![],
+        });
+    }
+
+    match user.approval_status {
+        ApprovalStatus::Rejected => {
+            return Ok(LoginResponse {
+                success: false,
+                message: "Access denied by administrator".into(),
+                accounts: vec![],
+            });
+        }
+        ApprovalStatus::Pending => {
+            return Ok(LoginResponse {
+                success: false,
+                message: "Account pending approval".into(),
+                accounts: vec![],
+            });
+        }
+        _ => {}
+    }
+
+    let accounts: Vec<StoredAccount> = user
+        .accounts
+        .iter()
+        .map(|a| StoredAccount {
+            account_id: a.account_id.clone(),
+            username: a.username.clone(),
+            status: match user.approval_status {
+                ApprovalStatus::Approved => AccountStatus::Approved,
+                ApprovalStatus::Pending => AccountStatus::Pending,
+                ApprovalStatus::Rejected => AccountStatus::Rejected,
+            },
+            last_used: chrono::Utc::now().timestamp(),
+        })
+        .collect();
+
+    let mut auth_state = load_auth_state(&app)?;
+    auth_state.accounts = accounts.clone();
+
+    // ✅ AUTO-SELECT if only ONE approved account
+    let approved_accounts: Vec<_> = auth_state
+        .accounts
+        .iter()
+        .filter(|a| a.status == AccountStatus::Approved)
+        .collect();
+
+    if approved_accounts.len() == 1 {
+        auth_state.active_account_id =
+            Some(approved_accounts[0].account_id.clone());
+    } else {
+        auth_state.active_account_id = None;
+    }
+
+    save_auth_state(&app, &auth_state)?;
+
+    Ok(LoginResponse {
+        success: true,
+        message: "Login successful".into(),
+        accounts,
+    })
+}
+
+#[tauri::command]
+fn auth_logout(app: AppHandle) -> Result<(), String> {
+    let mut auth = load_auth_state(&app)?;
+
+    // 🔴 ONLY LOGOUT — DO NOT DELETE ACCOUNTS
+    auth.active_account_id = None;
+
+    save_auth_state(&app, &auth)?;
+    Ok(())
+}
+
+
+
+#[tauri::command]
+fn auth_switch_account(app: AppHandle) -> Result<AuthStateFile, String> {
+    let mut state = load_auth_state(&app)?;
+    state.active_account_id = None;
+    save_auth_state(&app, &state)?;
+    Ok(state)
+}
+
 #[tauri::command]
 fn auth_get_state(app: AppHandle) -> Result<AuthStateFile, String> {
     load_auth_state(&app)
 }
+
+#[tauri::command]
+fn auth_select_account(
+    app: AppHandle,
+    account_id: String,
+) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = dir.join("auth_state.json");
+
+    let mut state: AuthStateFile =
+        serde_json::from_str(&std::fs::read_to_string(&path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+
+    // ensure account exists
+    let account = state
+        .accounts
+        .iter_mut()
+        .find(|a| a.account_id == account_id)
+        .ok_or("Account not found")?;
+
+    if account.status != AccountStatus::Approved {
+        return Err("Account is not approved".into());
+    }
+
+    account.last_used = chrono::Utc::now().timestamp();
+    state.active_account_id = Some(account_id);
+
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&state).unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 
 #[tauri::command]
 fn auth_set_active_account(
@@ -327,67 +580,6 @@ fn log_and_exit(
     app.exit(0);
 }
 
-/* ─────────────────────────────
-   AUTH COMMANDS
-   ───────────────────────────── */
-
-#[tauri::command]
-fn get_auth_state(app: AppHandle) -> Result<AuthState, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let path = dir.join("auth_state.json");
-
-    let contents =
-        std::fs::read_to_string(&path).map_err(|e| format!("Read failed: {}", e))?;
-
-    let state: AuthState =
-        serde_json::from_str(&contents).map_err(|e| format!("Parse failed: {}", e))?;
-
-    Ok(state)
-}
-
-#[tauri::command]
-fn set_authenticated(
-    app: AppHandle,
-    account_id: String,
-) -> Result<(), String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let path = dir.join("auth_state.json");
-
-    let mut state: AuthState = serde_json::from_str(
-        &std::fs::read_to_string(&path).map_err(|e| e.to_string())?
-    ).map_err(|e| e.to_string())?;
-
-    state.is_authenticated = true;
-    state.active_account_id = Some(account_id);
-
-    std::fs::write(
-        &path,
-        serde_json::to_string_pretty(&state).unwrap(),
-    ).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
-fn logout(app: AppHandle) -> Result<(), String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let path = dir.join("auth_state.json");
-
-    let mut state: AuthState = serde_json::from_str(
-        &std::fs::read_to_string(&path).map_err(|e| e.to_string())?
-    ).map_err(|e| e.to_string())?;
-
-    state.is_authenticated = false;
-    state.active_account_id = None;
-
-    std::fs::write(
-        &path,
-        serde_json::to_string_pretty(&state).unwrap(),
-    ).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
 
 /* ─────────────────────────────
    RUN
@@ -413,9 +605,11 @@ pub fn run() {
             auth_set_active_account,
             auth_clear_account,
             auth_mark_account_status,
-            get_auth_state,
-            set_authenticated,
-            logout
+            signup_user,
+            login_user,
+            auth_select_account,
+            auth_logout,
+            auth_switch_account,
         ])
         .setup(|app| {
             app.fs_scope()
@@ -430,8 +624,7 @@ pub fn run() {
             let auth_path = app_data_dir.join("auth_state.json");
 
             if !auth_path.exists() {
-                let initial_state = AuthState {
-                    is_authenticated: false,
+                let initial_state = AuthStateFile {
                     active_account_id: None,
                     accounts: vec![],
                 };
