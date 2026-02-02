@@ -78,12 +78,13 @@ struct LastSession {
     }
 
 
-   #[derive(Serialize, Deserialize, Clone)]
-pub enum ApprovalStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
+    #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ApprovalStatus {
+        Pending,
+        Approved,
+        Rejected,
+    }
+
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Account {
@@ -300,14 +301,21 @@ fn signup_user(
         created_at: chrono::Utc::now().to_rfc3339(),
     };
 
+    let is_first_user = users.is_empty();
+
     let user = User {
         user_id: uuid::Uuid::new_v4().to_string(),
         email,
         password_hash,
-        approval_status: ApprovalStatus::Pending,
+        approval_status: if is_first_user {
+            ApprovalStatus::Approved
+        } else {
+            ApprovalStatus::Pending
+        },
         accounts: vec![account],
         created_at: chrono::Utc::now().to_rfc3339(),
     };
+
 
     users.push(user);
     save_users(&app, &users)?;
@@ -324,6 +332,13 @@ struct LoginResponse {
     message: String,
     accounts: Vec<StoredAccount>,
 }
+
+#[derive(Serialize)]
+struct PendingAccount {
+    account_id: String,
+    username: String,
+}
+
 
 #[tauri::command]
 fn login_user(
@@ -519,6 +534,69 @@ fn auth_mark_account_status(
     save_auth_state(&app, &state)
 }
 
+#[tauri::command]
+fn auth_approve_account(app: AppHandle, account_id: String) -> Result<(), String> {
+    let mut auth = load_auth_state(&app)?;
+
+    let account = auth
+        .accounts
+        .iter_mut()
+        .find(|a| a.account_id == account_id)
+        .ok_or("Account not found")?;
+
+    account.status = AccountStatus::Approved;
+
+    save_auth_state(&app, &auth)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn auth_reject_account(app: AppHandle, account_id: String) -> Result<(), String> {
+    let mut users = load_users(&app)?;
+
+    let mut found = false;
+
+    for user in users.iter_mut() {
+        for acc in user.accounts.iter() {
+            if acc.account_id == account_id {
+                user.approval_status = ApprovalStatus::Rejected;
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if !found {
+        return Err("Account not found".into());
+    }
+
+    save_users(&app, &users)?;
+    Ok(())
+}
+
+
+#[tauri::command]
+fn auth_get_pending_accounts(app: AppHandle) -> Result<Vec<PendingAccount>, String> {
+    let users = load_users(&app)?;
+
+    let mut pending = Vec::new();
+
+    for user in users {
+        if user.approval_status == ApprovalStatus::Pending {
+            for acc in user.accounts {
+                pending.push(PendingAccount {
+                    account_id: acc.account_id,
+                    username: acc.username,
+                });
+            }
+        }
+    }
+
+    Ok(pending)
+}
+
+
+
 
 /* ─────────────────────────────
    EXIT + SAVE SESSION
@@ -610,6 +688,9 @@ pub fn run() {
             auth_select_account,
             auth_logout,
             auth_switch_account,
+            auth_approve_account,
+            auth_get_pending_accounts,
+            auth_reject_account,
         ])
         .setup(|app| {
             app.fs_scope()

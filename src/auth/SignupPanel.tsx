@@ -10,14 +10,16 @@ export default function SignupPanel({
   onSuccess,
   onCancel,
 }: Props) {
-
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null); // ✅ ADD THIS
 
   async function handleSignup() {
     setError(null);
+    setSuccess(null);
 
     try {
       const res = await invoke<{
@@ -34,7 +36,14 @@ export default function SignupPanel({
         return;
       }
 
-      onSuccess(); // return to login
+      // ✅ SHOW SUCCESS MESSAGE
+      setSuccess(res.message);
+
+      // ✅ DELAY RETURN TO LOGIN
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
+
     } catch (err: any) {
       setError(String(err));
     }
@@ -47,6 +56,12 @@ export default function SignupPanel({
       {error && (
         <div className="text-sm text-red-600">
           {error}
+        </div>
+      )}
+
+      {success && ( // ✅ ADD THIS BLOCK
+        <div className="text-sm text-green-600">
+          {success}
         </div>
       )}
 
@@ -75,6 +90,7 @@ export default function SignupPanel({
       <button
         className="w-full bg-black text-white py-2 rounded"
         onClick={handleSignup}
+        disabled={!!success} // optional but good UX
       >
         Create account
       </button>
@@ -82,10 +98,10 @@ export default function SignupPanel({
       <button
         className="text-sm underline w-full mt-2"
         onClick={onCancel}
+        disabled={!!success}
       >
         Back to sign in
       </button>
-
     </div>
   );
 }

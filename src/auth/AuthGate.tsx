@@ -4,6 +4,8 @@ import Workspace from "@/pages/Workspace";
 import LoginPanel from "@/auth/LoginPanel";
 import AccountSwitcher from "@/auth/AccountSwitcher";
 import SignupPanel from "./SignupPanel";
+import AdminApprovalPanel from "@/auth/AdminApprovalPanel";
+
 
 
 
@@ -13,6 +15,7 @@ type StoredAccount = {
   status: "Pending" | "Approved" | "Rejected" | "Suspended";
   last_used: number;
 };
+
 
 type AuthStateFile = {
   active_account_id: string | null;
@@ -157,34 +160,18 @@ if (!activeAccount) {
 
 // 🚫 active account exists but not approved
 if (activeAccount.status !== "Approved") {
-  return (
+    return (
     <div className="h-screen flex items-center justify-center">
-      <div className="border p-6 rounded w-96 space-y-2 text-center">
-        <h2 className="text-lg font-semibold">
-          Access Restricted
-        </h2>
+        <div className="border p-6 rounded w-105 space-y-3 text-center">
+        <h2 className="text-lg font-semibold">Access Restricted</h2>
 
-        {activeAccount.status === "Pending" && (
-          <p className="text-sm text-gray-600">
-            Your account is pending approval by the
-            application owner.
-          </p>
-        )}
-
-        {activeAccount.status === "Rejected" && (
-          <p className="text-sm text-red-600">
-            Your signup request was rejected.
-          </p>
-        )}
-
-        {activeAccount.status === "Suspended" && (
-          <p className="text-sm text-red-600">
-            Your account has been suspended.
-          </p>
-        )}
-      </div>
+        <p className="text-sm text-gray-600">
+            Account status: <b>{activeAccount.status}</b>
+        </p>
+        </div>
     </div>
-  );
+    );
+
 }
 
 
@@ -208,6 +195,14 @@ return (
         Logout
       </button>
     </div>
+
+    {activeAccount.status === "Approved" &&
+    activeAccount.username === "admin" && (
+        <div className="p-2 border-b bg-yellow-50">
+            <AdminApprovalPanel />
+        </div>
+    )}
+
 
     {/* 🧠 MAIN APP */}
     <div className="flex-1">
