@@ -74,6 +74,8 @@ export default function AuthGate() {
 
   useEffect(() => {
     (async () => {
+      await invoke("get_device_id");
+        
       const authState = await invoke<AuthStateFile>("auth_get_state");
       setState(authState);
       setLoading(false);

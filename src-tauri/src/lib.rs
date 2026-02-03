@@ -3,6 +3,8 @@ use tauri_plugin_fs::FsExt;
 use std::fs;
 use git2::{Repository, StatusOptions};
 use serde::{Deserialize, Serialize};
+use device_id::get_device_id;
+
 
 /* ─────────────────────────────
    AUTH MODELS
@@ -32,6 +34,8 @@ struct AuthStateFile {
 
 
 mod menu;
+mod device_id;
+
 
 /* ─────────────────────────────
    AUTH STATE
@@ -595,9 +599,6 @@ fn auth_get_pending_accounts(app: AppHandle) -> Result<Vec<PendingAccount>, Stri
     Ok(pending)
 }
 
-
-
-
 /* ─────────────────────────────
    EXIT + SAVE SESSION
    ───────────────────────────── */
@@ -691,6 +692,7 @@ pub fn run() {
             auth_approve_account,
             auth_get_pending_accounts,
             auth_reject_account,
+            get_device_id,
         ])
         .setup(|app| {
             app.fs_scope()
@@ -703,6 +705,8 @@ pub fn run() {
             // ──────────────── AUTH STATE INIT ────────────────
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             let auth_path = app_data_dir.join("auth_state.json");
+            let _ = device_id::get_device_id(app.handle().clone());
+
 
             if !auth_path.exists() {
                 let initial_state = AuthStateFile {
