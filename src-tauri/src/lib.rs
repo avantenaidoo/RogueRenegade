@@ -35,6 +35,8 @@ struct AuthStateFile {
 
 mod menu;
 mod device_id;
+mod blocked;
+
 
 
 /* ─────────────────────────────
@@ -693,6 +695,11 @@ pub fn run() {
             auth_get_pending_accounts,
             auth_reject_account,
             get_device_id,
+            blocked::blocked_get_state,
+            blocked::blocked_add_device,
+            blocked::blocked_remove_device,
+            blocked::blocked_add_account,
+            blocked::blocked_remove_account,
         ])
         .setup(|app| {
             app.fs_scope()
@@ -706,6 +713,7 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             let auth_path = app_data_dir.join("auth_state.json");
             let _ = device_id::get_device_id(app.handle().clone());
+            let _ = blocked::load_blocked_state(app.handle());
 
 
             if !auth_path.exists() {
