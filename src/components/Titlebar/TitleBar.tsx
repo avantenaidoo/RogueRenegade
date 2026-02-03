@@ -3,9 +3,15 @@ import { MenuBar } from "./Menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEditorStore } from "../../store";
 
+interface TitleBarProps {
+  onToggleDashboard: () => void;
+}
+
+
 const appWindow = getCurrentWindow();
 
-export default function TitleBar() {
+export default function TitleBar({ onToggleDashboard }: TitleBarProps) {
+
   const [isMaximized, setIsMaximized] = useState(false);
   const repoPath = useEditorStore(state => state.repoPath);
   const toggleCollaboration = useEditorStore(
@@ -63,6 +69,14 @@ export default function TitleBar() {
         </div>
 
         <MenuBar />
+        <button
+            data-tauri-drag-region={false}
+            className="text-xs px-2 py-1 rounded hover:bg-neutral-500/20"
+            onClick={onToggleDashboard}
+          >
+            Dashboard
+        </button>
+
       </div>
 
       {/* CENTER — VS CODE STYLE */}

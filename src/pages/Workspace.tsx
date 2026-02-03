@@ -11,7 +11,16 @@ import { initCollaboration } from "../utils/collaboration";
 import { Canvas } from "@/components/Canvas";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 
-export default function Workspace() {
+interface WorkspaceProps {
+  onSwitchAccount: () => void;
+  onLogout: () => void;
+}
+
+
+export default function Workspace({
+  onSwitchAccount,
+  onLogout,
+}: WorkspaceProps) {
   const {
     setRepoPath,
     addRecentFolder,
@@ -175,5 +184,8 @@ export default function Workspace() {
     })();
   }, [setRepoPath, addRecentFolder, updateTab, setActiveTab]);
 
-  return <Canvas />;
+  return <Canvas
+            onSwitchAccount={onSwitchAccount}
+            onLogout={onLogout}
+         />;
 }

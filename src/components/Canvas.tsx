@@ -7,12 +7,21 @@ import Editor from "./Editor";
 import GitPanel from "./GitPanel";
 import GitStatus from "./GitStatus";
 import StatusBar from "./StatusBar";
-import SettingsPanel from "./SettingsPanel";
 import CollaborationPanel from "./CollaborationPanel";
+import DashboardOverlay from "../dashboard/DashboardOverlay";
+
 
 import { useEditorStore } from "../store";
 
-export const Canvas: React.FC = () => {
+interface CanvasProps {
+  onSwitchAccount: () => void;
+  onLogout: () => void;
+}
+
+export const Canvas: React.FC<CanvasProps> = ({
+  onSwitchAccount,
+  onLogout,
+}) => {
   const {
     tabs,
     activeTabIndex,
@@ -24,7 +33,8 @@ export const Canvas: React.FC = () => {
   } = useEditorStore();
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
-  const [showSettings, setShowSettings] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+
 
   /* 🔥 COLLAB SIDEBAR WIDTH */
   const [collabWidth, setCollabWidth] = useState(320);
@@ -82,10 +92,15 @@ export const Canvas: React.FC = () => {
     };
   }, [isResizing, isChatMaximized]);
 
+  useEffect(() => {
+    console.log("showDashboard =", showDashboard);
+  }, [showDashboard]);
+
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       {/* TITLE BAR */}
-      <TitleBar />
+      <TitleBar onToggleDashboard={() => setShowDashboard(v => !v)} />
 
       {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">
@@ -180,21 +195,11 @@ export const Canvas: React.FC = () => {
 
       {/* BOTTOM PANEL */}
       {!isChatMaximized && (
-        <div className="h-40 border-t flex">
-          <div className="flex-1 overflow-auto">
-            {showSettings ? (
-              <SettingsPanel theme={theme} setTheme={setTheme} />
-            ) : (
-              <GitPanel />
-            )}
-          </div>
-
-          <div className="w-32 border-l flex items-center justify-center">
-            <button onClick={() => setShowSettings(v => !v)}>
-              {showSettings ? "Git" : "Settings"}
-            </button>
-          </div>
+       <div className="h-40 border-t flex">
+        <div className="flex-1 overflow-auto">
+          <GitPanel />
         </div>
+       </div>
       )}
 
       {/* STATUS BAR */}
@@ -204,6 +209,15 @@ export const Canvas: React.FC = () => {
           <StatusBar />
         </div>
       )}
+        <DashboardOverlay
+        open={showDashboard}
+        onClose={() => setShowDashboard(false)}
+        theme={theme}
+        setTheme={setTheme}
+        onSwitchAccount={onSwitchAccount}
+        onLogout={onLogout}
+        />
+
     </div>
   );
 };

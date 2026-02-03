@@ -4,10 +4,6 @@ import Workspace from "@/pages/Workspace";
 import LoginPanel from "@/auth/LoginPanel";
 import AccountSwitcher from "@/auth/AccountSwitcher";
 import SignupPanel from "./SignupPanel";
-import AdminApprovalPanel from "@/auth/AdminApprovalPanel";
-
-
-
 
 type StoredAccount = {
   account_id: string;
@@ -221,35 +217,15 @@ if (activeAccount.status !== "Approved") {
 
 return (
   <div className="h-screen flex flex-col">
-    {/* 🔧 TOP BAR */}
-    <div className="flex justify-end gap-2 p-2 border-b">
-      <button
-        className="px-3 py-1 text-sm bg-gray-600 text-white rounded"
-        onClick={() => switchAccount(setState)}
-      >
-        Switch account
-      </button>
-
-      <button
-        className="px-3 py-1 text-sm bg-red-600 text-white rounded"
-        onClick={() => logout(setState, setAuthMode, setForceAuthScreen)}
-
-      >
-        Logout
-      </button>
-    </div>
-
-    {activeAccount.status === "Approved" &&
-    activeAccount.username === "admin" && (
-        <div className="p-2 border-b bg-yellow-50">
-            <AdminApprovalPanel />
-        </div>
-    )}
-
 
     {/* 🧠 MAIN APP */}
     <div className="flex-1">
-      <Workspace />
+      <Workspace
+        onSwitchAccount={() => switchAccount(setState)}
+        onLogout={() =>
+          logout(setState, setAuthMode, setForceAuthScreen)
+        }
+      />
     </div>
   </div>
 );
