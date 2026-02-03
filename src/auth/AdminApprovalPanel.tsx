@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 type PendingAccount = {
   account_id: string;
   username: string;
+  email: string;
 };
 
 export default function AdminApprovalPanel() {
@@ -18,15 +19,28 @@ export default function AdminApprovalPanel() {
     setLoading(false);
   }
 
-  async function approve(account_id: string) {
-    await invoke("auth_approve_account", { accountId: account_id });
-    await load();
-  }
+    async function approve(email: string) {
+    await invoke("auth_approve_account", {
+        email,
+    });
 
-  async function decline(account_id: string) {
-    await invoke("auth_reject_account", { accountId: account_id });
     await load();
-  }
+    }
+
+    async function decline(email: string) {
+    // 1️⃣ Get current device ID
+    const deviceId = await invoke<string>("get_device_id");
+
+    // 2️⃣ Ban account + device (STEP 3.3 Rust command)
+    await invoke("blocked_ban_account_and_device", {
+        email,
+        deviceId,
+    });
+
+    // 3️⃣ Refresh pending list
+    await load();
+    }
+
 
   
   useEffect(() => {
@@ -54,18 +68,21 @@ export default function AdminApprovalPanel() {
           key={acc.account_id}
           className="flex justify-between items-center border p-2 rounded"
         >
-          <span>{acc.username}</span>
+          <div className="flex flex-col text-sm">
+        <span className="font-medium">Username: {acc.username}</span>
+        <span className="text-gray-600">Email: {acc.email}</span>
+        </div>
             <div className="flex gap-2">
             <button
                 className="px-2 py-1 bg-green-600 text-white rounded text-sm"
-                onClick={() => approve(acc.account_id)}
+                onClick={() => approve(acc.email)}
             >
                 Approve
             </button>
 
             <button
                 className="px-2 py-1 bg-red-600 text-white rounded text-sm"
-                onClick={() => decline(acc.account_id)}
+                onClick={() => decline(acc.email)}
             >
                 Decline
             </button>

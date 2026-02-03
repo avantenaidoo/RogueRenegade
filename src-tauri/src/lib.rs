@@ -343,6 +343,7 @@ struct LoginResponse {
 struct PendingAccount {
     account_id: String,
     username: String,
+    email: String,
 }
 
 
@@ -541,34 +542,32 @@ fn auth_mark_account_status(
 }
 
 #[tauri::command]
-fn auth_approve_account(app: AppHandle, account_id: String) -> Result<(), String> {
-    let mut auth = load_auth_state(&app)?;
+fn auth_approve_account(app: AppHandle, email: String) -> Result<(), String> {
+    let mut users = load_users(&app)?;
 
-    let account = auth
-        .accounts
+    let user = users
         .iter_mut()
-        .find(|a| a.account_id == account_id)
-        .ok_or("Account not found")?;
+        .find(|u| u.email == email)
+        .ok_or("User not found")?;
 
-    account.status = AccountStatus::Approved;
+    user.approval_status = ApprovalStatus::Approved;
 
-    save_auth_state(&app, &auth)?;
+    save_users(&app, &users)?;
     Ok(())
 }
 
+
 #[tauri::command]
-fn auth_reject_account(app: AppHandle, account_id: String) -> Result<(), String> {
+fn auth_reject_account(app: AppHandle, email: String) -> Result<(), String> {
     let mut users = load_users(&app)?;
 
     let mut found = false;
 
     for user in users.iter_mut() {
-        for acc in user.accounts.iter() {
-            if acc.account_id == account_id {
-                user.approval_status = ApprovalStatus::Rejected;
-                found = true;
-                break;
-            }
+        if user.email == email {
+            user.approval_status = ApprovalStatus::Rejected;
+            found = true;
+            break;
         }
     }
 
@@ -580,7 +579,6 @@ fn auth_reject_account(app: AppHandle, account_id: String) -> Result<(), String>
     Ok(())
 }
 
-
 #[tauri::command]
 fn auth_get_pending_accounts(app: AppHandle) -> Result<Vec<PendingAccount>, String> {
     let users = load_users(&app)?;
@@ -591,8 +589,9 @@ fn auth_get_pending_accounts(app: AppHandle) -> Result<Vec<PendingAccount>, Stri
         if user.approval_status == ApprovalStatus::Pending {
             for acc in user.accounts {
                 pending.push(PendingAccount {
-                    account_id: acc.account_id,
-                    username: acc.username,
+                    account_id: acc.account_id.clone(),
+                    username: acc.username.clone(),
+                    email: user.email.clone(),
                 });
             }
         }
@@ -700,6 +699,8 @@ pub fn run() {
             blocked::blocked_remove_device,
             blocked::blocked_add_account,
             blocked::blocked_remove_account,
+            blocked::is_device_blocked,
+            blocked::blocked_ban_account_and_device,
         ])
         .setup(|app| {
             app.fs_scope()

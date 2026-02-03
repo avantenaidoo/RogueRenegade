@@ -67,20 +67,42 @@ export default function AuthGate() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [forceAuthScreen, setForceAuthScreen] = useState(false);
 
+  const [isDeviceBlocked, setIsDeviceBlocked] = useState<boolean | null>(null);
+
+
 
 
   const activeAccount =
   state ? selectActiveAccount(state) : null;
 
-  useEffect(() => {
+    useEffect(() => {
     (async () => {
-      await invoke("get_device_id");
-        
-      const authState = await invoke<AuthStateFile>("auth_get_state");
-      setState(authState);
-      setLoading(false);
+        // 1️⃣ Ensure device ID exists and fetch it
+        const deviceId = await invoke<string>("get_device_id");
+
+        // 2️⃣ Load blocked state
+        const blocked = await invoke<{
+        blocked_devices: string[];
+        blocked_accounts: string[];
+        }>("blocked_get_state");
+
+        // 3️⃣ HARD DEVICE BLOCK CHECK
+        if (blocked.blocked_devices.includes(deviceId)) {
+        setIsDeviceBlocked(true);
+        setLoading(false);
+        return; // ⛔ STOP EVERYTHING
+        }
+
+        // 4️⃣ Device is allowed
+        setIsDeviceBlocked(false);
+
+        // 5️⃣ Continue normal auth flow
+        const authState = await invoke<AuthStateFile>("auth_get_state");
+        setState(authState);
+        setLoading(false);
     })();
-  }, []);
+    }, []);
+
 
   if (loading) {
     return (
@@ -89,6 +111,25 @@ export default function AuthGate() {
       </div>
     );
   }
+
+
+    // 🚫 HARD DEVICE BAN — NOTHING ELSE RENDERS
+    if (isDeviceBlocked) {
+    return (
+        <div className="h-screen flex items-center justify-center bg-black text-red-500">
+        <div className="border border-red-600 p-8 rounded text-center space-y-4 max-w-md">
+            <h1 className="text-2xl font-bold">Device Banned</h1>
+            <p className="text-sm text-red-400">
+            This device has been permanently blocked from accessing Rogue Renegade IDE.
+            </p>
+            <p className="text-xs text-red-700">
+            If you believe this is a mistake, contact the administrator.
+            </p>
+        </div>
+        </div>
+    );
+    }
+
 
   // ✅ AUTH CHECK = active account exists
     if (!state || state.accounts.length === 0) {

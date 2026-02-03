@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct BlockedState {
     pub blocked_devices: Vec<String>,
@@ -75,11 +76,11 @@ pub fn blocked_remove_device(app: AppHandle, device_id: String) -> BlockedState 
 }
 
 #[tauri::command]
-pub fn blocked_add_account(app: AppHandle, account_id: String) -> BlockedState {
+pub fn blocked_add_account(app: AppHandle, email: String) -> BlockedState {
     let mut state = load_blocked_state(&app);
 
-    if !state.blocked_accounts.contains(&account_id) {
-        state.blocked_accounts.push(account_id);
+    if !state.blocked_accounts.contains(&email) {
+        state.blocked_accounts.push(email);
         save_blocked_state(&app, &state);
     }
 
@@ -89,13 +90,48 @@ pub fn blocked_add_account(app: AppHandle, account_id: String) -> BlockedState {
 #[tauri::command]
 pub fn blocked_remove_account(
     app: AppHandle,
-    account_id: String,
+    email: String,
 ) -> BlockedState {
     let mut state = load_blocked_state(&app);
 
     state
         .blocked_accounts
-        .retain(|a| a != &account_id);
+        .retain(|a| a != &email);
+
+    save_blocked_state(&app, &state);
+    state
+}
+
+#[tauri::command]
+pub fn is_device_blocked(app: AppHandle) -> Result<bool, String> {
+    // 1️⃣ Load current blocked state
+    let state = load_blocked_state(&app);
+
+    // 2️⃣ Get device ID
+    let device_id = crate::device_id::get_device_id(app)
+        .map_err(|e| format!("Failed to get device id: {}", e))?;
+
+    // 3️⃣ Check if blocked
+    Ok(state.blocked_devices.contains(&device_id))
+}
+
+#[tauri::command]
+pub fn blocked_ban_account_and_device(
+    app: AppHandle,
+    email: String,
+    device_id: String,
+) -> BlockedState {
+    let mut state = load_blocked_state(&app);
+
+    // 1️⃣ Ban account
+    if !state.blocked_accounts.contains(&email) {
+        state.blocked_accounts.push(email);
+    }
+
+    // 2️⃣ Ban device
+    if !state.blocked_devices.contains(&device_id) {
+        state.blocked_devices.push(device_id);
+    }
 
     save_blocked_state(&app, &state);
     state
