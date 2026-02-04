@@ -1,68 +1,59 @@
 import { signRequest } from "./signRequest";
+import { getDeviceKeys } from "./deviceKeys";
 
-/**
- * Backend base URL (Axum)
- */
-const BACKEND_URL = "http://127.0.0.1:3000";
+const API_BASE = "http://127.0.0.1:3000";
+const KEY_ID = "device-main";
 
-/**
- * TEMP: device key access
- * (later this comes from Tauri secure storage)
- */
-function getDeviceKeys() {
-  // ⚠️ PLACEHOLDER — you already generate this in Rust
-  // For now we hard-wire to prove the pipeline works
-  const privateKey = (window as any).__DEVICE_PRIVATE_KEY__ as Uint8Array;
-  const keyId = "device-1";
+function normalizeBody(body?: BodyInit | null): Uint8Array {
+  if (!body) return new Uint8Array();
 
-  if (!privateKey) {
-    throw new Error("Device private key not loaded");
+  if (body instanceof Uint8Array) {
+    return body;
   }
 
-  return { privateKey, keyId };
+  if (typeof body === "string") {
+    return new TextEncoder().encode(body);
+  }
+
+  throw new Error("Unsupported request body type for signed request");
 }
 
-/**
- * LOW-LEVEL signed HTTP request
- * THIS is what finalises the system
- */
 export async function backendFetch(
   path: string,
-  options?: {
-    method?: "GET" | "POST";
-    body?: unknown;
-  }
+  options: RequestInit = {}
 ) {
-  const method = options?.method ?? "GET";
-  const body = options?.body ?? null;
+  const { privateKey } = await getDeviceKeys();
 
-  const bodyBytes = body
-    ? new TextEncoder().encode(JSON.stringify(body))
-    : new Uint8Array();
+  const method = (options.method ?? "GET").toUpperCase();
+  const bodyBytes = normalizeBody(options.body);
 
-  const { privateKey, keyId } = getDeviceKeys();
-
-  const signatureHeaders = await signRequest(
+  const signedHeaders = await signRequest(
     privateKey,
-    keyId,
+    KEY_ID,
     method,
     path,
     bodyBytes
   );
 
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const res = await fetch(API_BASE + path, {
+    ...options,
     method,
     headers: {
-      "content-type": "application/json",
-      ...signatureHeaders,
+      ...(options.headers || {}),
+      ...signedHeaders,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    // ✅ FORCE REAL ArrayBuffer (NOT SharedArrayBuffer)
+    body: bodyBytes.length > 0
+      ? bodyBytes.slice().buffer
+      : undefined,
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Backend ${res.status}: ${text}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Backend error ${res.status}${text ? `: ${text}` : ""}`
+    );
   }
 
-  return res.json().catch(() => null);
+  return res;
 }
