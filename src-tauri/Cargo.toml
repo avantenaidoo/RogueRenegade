@@ -34,3 +34,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-clipboard-manager = "2"
 
 git2 = "0.18"
+
+keyring = "2.0"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+base64 = "0.22"

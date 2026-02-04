@@ -4,6 +4,8 @@ use std::fs;
 use git2::{Repository, StatusOptions};
 use serde::{Deserialize, Serialize};
 use device_id::get_device_id;
+use device_keys::{get_or_create_device_key, public_key_base64};
+
 
 
 /* ─────────────────────────────
@@ -36,8 +38,7 @@ struct AuthStateFile {
 mod menu;
 mod device_id;
 mod blocked;
-
-
+mod device_keys;
 
 /* ─────────────────────────────
    AUTH STATE
@@ -703,6 +704,16 @@ pub fn run() {
             blocked::blocked_ban_account_and_device,
         ])
         .setup(|app| {
+
+            // ──────────────── DEVICE CRYPTO ID INIT ────────────────
+            let verifying_key = get_or_create_device_key()
+                .expect("❌ Failed to initialize device cryptographic identity");
+
+            let device_public_key = public_key_base64(&verifying_key);
+
+            println!("🔑 DEVICE PUBLIC KEY: {}", device_public_key);
+
+
             app.fs_scope()
                 .allow_directory("C:\\Users\\avant", true)
                 .expect("FS scope allow failed");
