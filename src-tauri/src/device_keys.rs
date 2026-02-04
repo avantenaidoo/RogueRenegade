@@ -6,7 +6,16 @@ use base64::{engine::general_purpose, Engine};
 const SERVICE: &str = "com.avant.rogue-renegade-ide.device";
 const KEY_NAME: &str = "device_private_key";
 
-pub fn get_or_create_device_key() -> Result<VerifyingKey, String> {
+/* ─────────────────────────────────────────────
+   BACKEND SIGNING AUTHORITY (DEV)
+   ─ pasted ONCE from backend terminal output
+───────────────────────────────────────────── */
+pub const BACKEND_SIGNING_PUBLIC_KEY_BASE64: &str =
+    "g+v0oghWBprcwrCbO9lYTnAmFY55zCNrxWuPUKuDCQk=";
+
+/// 🔑 LOAD OR CREATE *DEVICE SIGNING KEY* (PRIVATE)
+/// THIS IS WHAT YOU USE FOR STEP 11 SIGNING
+pub fn get_or_create_device_key() -> Result<SigningKey, String> {
     let entry = Entry::new(SERVICE, KEY_NAME)
         .map_err(|e| e.to_string())?;
 
@@ -22,8 +31,7 @@ pub fn get_or_create_device_key() -> Result<VerifyingKey, String> {
             .try_into()
             .map_err(|_| "Invalid private key length (expected 32 bytes)".to_string())?;
 
-        let signing_key = SigningKey::from_bytes(&secret);
-        return Ok(signing_key.verifying_key());
+        return Ok(SigningKey::from_bytes(&secret));
     }
 
     // ─────────────────────────────
@@ -32,14 +40,16 @@ pub fn get_or_create_device_key() -> Result<VerifyingKey, String> {
     let signing_key = SigningKey::generate(&mut OsRng);
     let private_bytes: [u8; 32] = signing_key.to_bytes();
 
-    // Store private key in OS secure storage (BASE64)
+    // Store PRIVATE KEY in OS secure storage (BASE64)
     entry
         .set_password(&general_purpose::STANDARD.encode(private_bytes))
         .map_err(|e| e.to_string())?;
 
-    Ok(signing_key.verifying_key())
+    Ok(signing_key)
 }
 
-pub fn public_key_base64(vk: &VerifyingKey) -> String {
-    general_purpose::STANDARD.encode(vk.to_bytes())
+/// 🔓 DERIVE PUBLIC KEY (FOR REGISTRATION / DISPLAY ONLY)
+pub fn public_key_base64(signing_key: &SigningKey) -> String {
+    let verifying_key: VerifyingKey = signing_key.verifying_key();
+    general_purpose::STANDARD.encode(verifying_key.to_bytes())
 }

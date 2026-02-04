@@ -5,6 +5,8 @@ use git2::{Repository, StatusOptions};
 use serde::{Deserialize, Serialize};
 use device_id::get_device_id;
 use device_keys::{get_or_create_device_key, public_key_base64};
+use crate::request_signing::sign_request;
+
 
 
 
@@ -39,6 +41,8 @@ mod menu;
 mod device_id;
 mod blocked;
 mod device_keys;
+mod request_signing;
+
 
 /* ─────────────────────────────
    AUTH STATE
@@ -661,6 +665,48 @@ fn log_and_exit(
     app.exit(0);
 }
 
+#[tauri::command]
+async fn ping_server() -> Result<String, String> {
+    // ── payload ─────────────────────────────
+    let payload = serde_json::json!({
+        "ping": "hello"
+    });
+
+    let body = serde_json::to_vec(&payload)
+        .map_err(|e| e.to_string())?;
+
+    // ── device signing key ───────────────────
+    let signing_key = get_or_create_device_key()
+        .map_err(|e| e.to_string())?;
+
+    // ── STEP 11: SIGN REQUEST ─────────────────
+    let signed = sign_request(
+        &signing_key,
+        "main-2025-01",
+        "POST",
+        "/ping",
+        &body,
+    ).map_err(|e| e.to_string())?;
+
+    // ── HTTP SEND ────────────────────────────
+    let client = reqwest::Client::new();
+    let mut request = client
+        .post("https://your-api-domain.com/ping")
+        .body(body);
+
+    for (k, v) in signed.headers {
+        request = request.header(k, v);
+    }
+
+    let res = request
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(res.text().await.map_err(|e| e.to_string())?)
+}
+
+
 
 /* ─────────────────────────────
    RUN
@@ -702,6 +748,7 @@ pub fn run() {
             blocked::blocked_remove_account,
             blocked::is_device_blocked,
             blocked::blocked_ban_account_and_device,
+            ping_server,
         ])
         .setup(|app| {
 
