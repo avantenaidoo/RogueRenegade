@@ -7,6 +7,8 @@ interface DashboardOverlayProps {
   setTheme: (theme: "vs-dark" | "vs-light") => void;
   onSwitchAccount: () => void;
   onLogout: () => void;
+  pendingApprovalCount: number;
+  refreshPendingApprovals: () => void;
 }
 
 export default function DashboardOverlay({
@@ -16,6 +18,8 @@ export default function DashboardOverlay({
   setTheme,
   onSwitchAccount,
   onLogout,
+  pendingApprovalCount,
+  refreshPendingApprovals,
 }: DashboardOverlayProps) {
   if (!open) return null;
 
@@ -51,6 +55,8 @@ export default function DashboardOverlay({
           setTheme={setTheme}
           onSwitchAccount={onSwitchAccount}
           onLogout={onLogout}
+          pendingApprovalCount={pendingApprovalCount}
+          refreshPendingApprovals={refreshPendingApprovals}
         />
       </div>
     </div>

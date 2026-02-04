@@ -65,8 +65,7 @@ export default function AuthGate() {
 
   const [isDeviceBlocked, setIsDeviceBlocked] = useState<boolean | null>(null);
 
-
-
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   const activeAccount =
   state ? selectActiveAccount(state) : null;
@@ -98,6 +97,25 @@ export default function AuthGate() {
         setLoading(false);
     })();
     }, []);
+
+    useEffect(() => {
+        let interval: number | null = null;
+
+        if (state?.accounts.length) {
+            // initial load
+            fetchPendingApprovalCount(setPendingApprovalCount);
+
+            // live refresh every 5 seconds
+            interval = window.setInterval(() => {
+            fetchPendingApprovalCount(setPendingApprovalCount);
+            }, 5000);
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+        }, [state?.accounts.length]);
+
 
 
   if (loading) {
@@ -213,6 +231,17 @@ if (activeAccount.status !== "Approved") {
 
 }
 
+async function fetchPendingApprovalCount(
+  setCount: (n: number) => void
+) {
+  const pending = await invoke<any[]>("auth_get_pending_accounts");
+  setCount(pending.length);
+}
+
+const refreshPendingApprovals = async () => {
+  await fetchPendingApprovalCount(setPendingApprovalCount);
+};
+
 
 
 return (
@@ -220,12 +249,14 @@ return (
 
     {/* 🧠 MAIN APP */}
     <div className="flex-1">
-      <Workspace
+        <Workspace
         onSwitchAccount={() => switchAccount(setState)}
         onLogout={() =>
-          logout(setState, setAuthMode, setForceAuthScreen)
+            logout(setState, setAuthMode, setForceAuthScreen)
         }
-      />
+        pendingApprovalCount={pendingApprovalCount}
+        refreshPendingApprovals={refreshPendingApprovals}
+        />
     </div>
   </div>
 );

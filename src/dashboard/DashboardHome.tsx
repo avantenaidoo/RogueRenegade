@@ -13,6 +13,8 @@ interface DashboardHomeProps {
   setTheme: (theme: "vs-dark" | "vs-light") => void;
   onSwitchAccount: () => void;
   onLogout: () => void;
+  pendingApprovalCount: number;
+  refreshPendingApprovals: () => void;
 }
 
 export default function DashboardHome({
@@ -20,6 +22,8 @@ export default function DashboardHome({
   setTheme,
   onSwitchAccount,
   onLogout,
+  pendingApprovalCount,
+  refreshPendingApprovals,
 }: DashboardHomeProps) {
   const [activePanel, setActivePanel] =
     useState<DashboardPanel>("general");
@@ -41,7 +45,10 @@ export default function DashboardHome({
         );
 
       case "admin":
-        return <AdminPanel />;
+        return <AdminPanel
+                pendingApprovalCount={pendingApprovalCount}
+                refreshPendingApprovals={refreshPendingApprovals}
+               />;
 
       case "general":
       default:

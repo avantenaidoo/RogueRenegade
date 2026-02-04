@@ -1,33 +1,20 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useState } from "react";
 
-// ⚠️ THIS IS THE REAL APPROVAL PANEL (AUTH ONE)
+// ⚠️ REAL APPROVAL PANEL
 import AdminApprovalPanel from "@/auth/AdminApprovalPanel";
 
 type AdminView = "home" | "pending";
 
-type PendingAccount = {
-  account_id: string;
-  username: string;
-  email: string;
-};
+interface AdminPanelProps {
+  pendingApprovalCount: number;
+  refreshPendingApprovals: () => void;
+}
 
-export default function AdminPanel() {
+export default function AdminPanel({
+  pendingApprovalCount,
+  refreshPendingApprovals,
+}: AdminPanelProps) {
   const [view, setView] = useState<AdminView>("home");
-  const [pendingCount, setPendingCount] = useState<number>(0);
-  const [loadingCount, setLoadingCount] = useState(true);
-
-  async function loadPendingCount() {
-    const pending = await invoke<PendingAccount[]>(
-      "auth_get_pending_accounts"
-    );
-    setPendingCount(pending.length);
-    setLoadingCount(false);
-  }
-
-  useEffect(() => {
-    loadPendingCount();
-  }, []);
 
   /* ───────── HOME / MENU ───────── */
   if (view === "home") {
@@ -58,8 +45,8 @@ export default function AdminPanel() {
             Pending approvals
           </span>
 
-          {/* BADGE */}
-          {!loadingCount && pendingCount > 0 && (
+          {/* ✅ GLOBAL BADGE */}
+          {pendingApprovalCount > 0 && (
             <span
               className="
                 ml-3
@@ -75,14 +62,10 @@ export default function AdminPanel() {
                 justify-center
               "
             >
-              {pendingCount}
+              {pendingApprovalCount}
             </span>
           )}
         </button>
-
-        {/* 🚧 FUTURE ADMIN BUTTONS GO HERE */}
-        {/* <button>Blocked devices</button> */}
-        {/* <button>Audit logs</button> */}
       </div>
     );
   }
@@ -100,14 +83,16 @@ export default function AdminPanel() {
             className="text-sm text-muted hover:text-default"
             onClick={() => {
               setView("home");
-              loadPendingCount(); // refresh badge when returning
+              refreshPendingApprovals(); // ✅ force refresh on return
             }}
           >
             ← Back
           </button>
         </div>
 
-        <AdminApprovalPanel />
+        <AdminApprovalPanel
+          onActionComplete={refreshPendingApprovals}
+        />
       </div>
     );
   }

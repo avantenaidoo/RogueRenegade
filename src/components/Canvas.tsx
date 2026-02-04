@@ -16,11 +16,15 @@ import { useEditorStore } from "../store";
 interface CanvasProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
+  pendingApprovalCount: number;
+  refreshPendingApprovals: () => void;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
   onSwitchAccount,
   onLogout,
+  pendingApprovalCount,
+  refreshPendingApprovals,
 }) => {
   const {
     tabs,
@@ -216,6 +220,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         setTheme={setTheme}
         onSwitchAccount={onSwitchAccount}
         onLogout={onLogout}
+        pendingApprovalCount={pendingApprovalCount}
+        refreshPendingApprovals={refreshPendingApprovals}
         />
 
     </div>

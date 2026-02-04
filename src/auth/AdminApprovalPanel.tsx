@@ -7,7 +7,14 @@ type PendingAccount = {
   email: string;
 };
 
-export default function AdminApprovalPanel() {
+interface AdminApprovalPanelProps {
+  onActionComplete?: () => void;
+}
+
+
+export default function AdminApprovalPanel({
+  onActionComplete,
+}: AdminApprovalPanelProps) {
   const [pending, setPending] = useState<PendingAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,21 +32,25 @@ export default function AdminApprovalPanel() {
     });
 
     await load();
+    onActionComplete?.(); // ✅ GLOBAL REFRESH
     }
 
     async function decline(email: string) {
-    // 1️⃣ Get current device ID
     const deviceId = await invoke<string>("get_device_id");
 
-    // 2️⃣ Ban account + device (STEP 3.3 Rust command)
     await invoke("blocked_ban_account_and_device", {
         email,
         deviceId,
     });
 
-    // 3️⃣ Refresh pending list
-    await load();
+    // 🔥 REMOVE FROM UI IMMEDIATELY
+    setPending(prev =>
+        prev.filter(acc => acc.email !== email)
+    );
+
+    onActionComplete?.(); // badge refresh
     }
+
 
 
   

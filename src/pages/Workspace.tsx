@@ -14,12 +14,16 @@ import { writeTextFile } from "@tauri-apps/plugin-fs";
 interface WorkspaceProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
+  pendingApprovalCount: number;
+  refreshPendingApprovals: () => void;
 }
 
 
 export default function Workspace({
   onSwitchAccount,
   onLogout,
+  pendingApprovalCount,
+  refreshPendingApprovals,
 }: WorkspaceProps) {
   const {
     setRepoPath,
@@ -187,5 +191,7 @@ export default function Workspace({
   return <Canvas
             onSwitchAccount={onSwitchAccount}
             onLogout={onLogout}
+            pendingApprovalCount={pendingApprovalCount}
+            refreshPendingApprovals={refreshPendingApprovals}
          />;
 }
