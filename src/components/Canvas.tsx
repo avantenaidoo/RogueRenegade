@@ -13,6 +13,9 @@ import DashboardOverlay from "../dashboard/DashboardOverlay";
 
 import { useEditorStore } from "../store";
 
+import { backendFetch } from "../lib/backend";
+
+
 interface CanvasProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
@@ -38,6 +41,18 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [showDashboard, setShowDashboard] = useState(false);
+
+    /* ───────────── BACKEND CONNECTIVITY TEST ───────────── */
+    useEffect(() => {
+        backendFetch("/ping")
+        .then((res) => {
+            console.log("✅ BACKEND SIGNED PING OK", res);
+        })
+        .catch((err) => {
+            console.error("❌ BACKEND SIGNED PING FAILED", err);
+        });
+    }, []);
+
 
 
   /* 🔥 COLLAB SIDEBAR WIDTH */
