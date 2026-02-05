@@ -1,9 +1,9 @@
 import * as ed25519 from "@noble/ed25519";
-import {
-  readTextFile,
-  writeTextFile,
-  BaseDirectory,
-} from "@tauri-apps/plugin-fs";
+import { sha512 } from "@noble/hashes/sha2.js";
+import { readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+
+// 🔥 REQUIRED SETUP
+ed25519.hashes.sha512 = sha512;
 
 const KEY_FILE = "device_key.json";
 
