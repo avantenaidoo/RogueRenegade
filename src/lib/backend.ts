@@ -1,8 +1,32 @@
 import { signRequest } from "./signRequest";
 import { getDeviceKeys } from "./deviceKeys";
 
+/* ─────────────────────────
+   CONFIG
+   ───────────────────────── */
+
 const API_BASE = "http://127.0.0.1:3000";
-const KEY_ID = "device-main";
+const DEVICE_ID_KEY = "rogue-renegade-device-id";
+
+/* ─────────────────────────
+   DEVICE ID (PERSISTENT)
+   ───────────────────────── */
+
+function getDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, id);
+    console.log("🆕 GENERATED DEVICE ID:", id);
+  }
+
+  return id;
+}
+
+/* ─────────────────────────
+   BODY NORMALIZATION
+   ───────────────────────── */
 
 function normalizeBody(body?: BodyInit | null): Uint8Array {
   if (!body) return new Uint8Array();
@@ -18,18 +42,23 @@ function normalizeBody(body?: BodyInit | null): Uint8Array {
   throw new Error("Unsupported request body type for signed request");
 }
 
+/* ─────────────────────────
+   SIGNED FETCH
+   ───────────────────────── */
+
 export async function backendFetch(
   path: string,
   options: RequestInit = {}
 ) {
   const { privateKey } = await getDeviceKeys();
+  const deviceId = getDeviceId();
 
   const method = (options.method ?? "GET").toUpperCase();
   const bodyBytes = normalizeBody(options.body);
 
   const signedHeaders = await signRequest(
     privateKey,
-    KEY_ID,
+    deviceId, // ✅ REAL DEVICE ID
     method,
     path,
     bodyBytes
@@ -42,10 +71,10 @@ export async function backendFetch(
       ...(options.headers || {}),
       ...signedHeaders,
     },
-    // ✅ FORCE REAL ArrayBuffer (NOT SharedArrayBuffer)
-    body: bodyBytes.length > 0
-      ? bodyBytes.slice().buffer
-      : undefined,
+    body:
+      bodyBytes.length > 0
+        ? bodyBytes.slice().buffer // force ArrayBuffer
+        : undefined,
   });
 
   if (!res.ok) {
