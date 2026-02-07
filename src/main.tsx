@@ -5,6 +5,18 @@ import { bootstrapSecurity } from "./lib/bootstrap";
 import "./utils/chart";
 import "./App.css";
 
+/* ─────────────────────────
+   🔥 ADDED: HARD BAN GATE
+   ───────────────────────── */
+
+if (localStorage.getItem("device-banned") === "true") {
+  console.error("⛔ DEVICE PERMANENTLY BANNED");
+  // 👇 THIS IS WHERE YOUR EXISTING BANNED WINDOW GOES
+  throw new Error("DEVICE_BANNED");
+}
+
+/* ───────────────────────── */
+
 async function start() {
   console.log("🚀 APP STARTING");
 
@@ -14,9 +26,6 @@ async function start() {
     console.log("✅ BOOTSTRAP: security complete");
   } catch (err) {
     console.error("❌ BOOTSTRAP FAILED (APP WILL STILL LOAD)", err);
-
-    // 🔥 CRITICAL: DO NOT HARD STOP
-    // We allow the UI to mount so you can see errors, devtools, UI, etc.
   }
 
   const rootEl = document.getElementById("root");

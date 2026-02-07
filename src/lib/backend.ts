@@ -73,9 +73,22 @@ export async function backendFetch(
     },
     body:
       bodyBytes.length > 0
-        ? bodyBytes.slice().buffer // force ArrayBuffer
+        ? bodyBytes.slice().buffer
         : undefined,
   });
+
+  /* ─────────────────────────
+     🔥 ADDED: DEVICE BAN HANDLING
+     ───────────────────────── */
+
+  if (res.status === 423) {
+    console.error("⛔ DEVICE BANNED — LOCKING APP");
+    localStorage.setItem("device-banned", "true");
+    window.location.reload(); // force hard lock
+    throw new Error("DEVICE_BANNED");
+  }
+
+  /* ───────────────────────── */
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
