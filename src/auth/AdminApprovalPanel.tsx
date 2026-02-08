@@ -1,8 +1,5 @@
-// C:\Users\avant\app\DevJavascriptStuff\React_Projects\Vite_Projects\rogue-renegade-ide\src\auth\AdminApprovalPanel.tsx
-
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { backendFetch } from "@/lib/backend";
 
 type PendingAccount = {
   account_id: string;
@@ -48,11 +45,8 @@ export default function AdminApprovalPanel({
     });
 
     // ✅ UPDATE backend device state
-    await backendFetch("/admin/approve-device", {
-      method: "POST",
-      body: JSON.stringify({
-        device_id: deviceId,
-      }),
+    await invoke("admin_approve_device", {
+      deviceId,
     });
 
     onActionComplete?.();
@@ -82,11 +76,8 @@ export default function AdminApprovalPanel({
     });
 
     // ✅ BAN DEVICE IN BACKEND
-    await backendFetch("/admin/ban-device", {
-      method: "POST",
-      body: JSON.stringify({
-        device_id: deviceId,
-      }),
+    await invoke("admin_ban_device", {
+      deviceId,
     });
 
     onActionComplete?.();

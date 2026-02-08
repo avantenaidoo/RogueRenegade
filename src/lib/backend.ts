@@ -8,6 +8,11 @@ import { getDeviceKeys } from "./deviceKeys";
 const API_BASE = "http://127.0.0.1:3000";
 const DEVICE_ID_KEY = "rogue-renegade-device-id";
 
+function isAdminRoute(path: string): boolean {
+  return path.startsWith("/admin/");
+}
+
+
 /* ─────────────────────────
    DEVICE ID (PERSISTENT)
    ───────────────────────── */
@@ -50,6 +55,11 @@ export async function backendFetch(
   path: string,
   options: RequestInit = {}
 ) {
+  if (isAdminRoute(path)) {
+    throw new Error(
+      "SECURITY VIOLATION: admin routes must be signed by backend admin key"
+    );
+  }
   const { privateKey } = await getDeviceKeys();
   const deviceId = getDeviceId();
 
