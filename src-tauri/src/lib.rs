@@ -763,6 +763,10 @@ pub fn run() {
         ])
         .setup(|app| {
 
+            // ──────────────── WORKSPACE INIT ────────────────
+            let ws = create_default_workspace();
+            println!("📁 Default workspace created: {:?}", ws.root_path);
+
             // ──────────────── DEVICE CRYPTO ID INIT ────────────────
             let verifying_key = get_or_create_device_key()
                 .expect("❌ Failed to initialize device cryptographic identity");
