@@ -34,14 +34,18 @@ export const Canvas: React.FC<CanvasProps> = ({
       useEditorStore.getState().loadWorkspaces();
     }, []);
   const {
-    tabs,
-    activeTabIndex,
+    // 🔥 workspace-aware
+    focusedWorkspaceId,
+    tabsByWorkspace,
+    activeTabIndexByWorkspace,
+
     setActiveTab,
     closeTab,
     updateTab,
     markClean,
     showCollaboration,
   } = useEditorStore();
+
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [showDashboard, setShowDashboard] = useState(false);
@@ -70,7 +74,19 @@ export const Canvas: React.FC<CanvasProps> = ({
 
 
 
-  const activeTab = tabs[activeTabIndex];
+  // 🔥 WORKSPACE-AWARE TAB DERIVATION
+  const workspaceTabs =
+    focusedWorkspaceId
+      ? tabsByWorkspace[focusedWorkspaceId] ?? []
+      : [];
+
+  const workspaceActiveIndex =
+    focusedWorkspaceId
+      ? activeTabIndexByWorkspace[focusedWorkspaceId] ?? 0
+      : 0;
+
+  const activeTab = workspaceTabs[workspaceActiveIndex];
+
 
   /* ───────────── THEME ───────────── */
   useEffect(() => {
@@ -156,13 +172,13 @@ export const Canvas: React.FC<CanvasProps> = ({
           <div className="flex flex-col flex-1 min-w-0">
             {/* TABS */}
             <div className="h-9 flex border-b shrink-0 overflow-x-auto">
-              {tabs.map((tab, i) => (
+              {workspaceTabs.map((tab, i) => (
                 <div
                   key={tab.path}
                   onClick={() => setActiveTab(i)}
                   className={`flex items-center gap-2 px-3 text-sm cursor-pointer
                     ${
-                      i === activeTabIndex
+                      i === workspaceActiveIndex
                         ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
                         : "bg-transparent text-default hover:bg-neutral-500"
                     }`}
@@ -195,7 +211,7 @@ export const Canvas: React.FC<CanvasProps> = ({
                   path={activeTab.path}
                   theme={theme}
                   onChange={(val) => {
-                    updateTab(activeTabIndex, { content: val ?? "" });
+                    updateTab(workspaceActiveIndex, { content: val ?? "" });
                   }}
                 />
               )}
