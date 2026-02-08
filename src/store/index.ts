@@ -146,7 +146,11 @@ const RECENT_FOLDERS_KEY = "rride:recent-folders";
 const RECENT_FILES_KEY = "rride:recent-files";
 
 const OPEN_TABS_KEY = "rride:open-tabs";
-const ACTIVE_TAB_KEY = "rride:active-tab";
+
+// 🔥 WORKSPACE-SCOPED TAB PERSISTENCE
+const OPEN_TABS_BY_WORKSPACE_KEY = "rride:open-tabs-by-workspace";
+const ACTIVE_TAB_BY_WORKSPACE_KEY = "rride:active-tab-by-workspace";
+
 
 /* 🔥 cursor persistence */
 const CURSOR_MAP_KEY = "rride:cursor-map";
@@ -241,20 +245,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
       ];
 
+      const nextIndex = nextTabs.length - 1;
+
+      const nextTabsByWs = {
+        ...state.tabsByWorkspace,
+        [wsId]: nextTabs,
+      };
+
+      const nextActiveByWs = {
+        ...state.activeTabIndexByWorkspace,
+        [wsId]: nextIndex,
+      };
+
+      // 🔥 PERSIST
+      localStorage.setItem(
+        OPEN_TABS_BY_WORKSPACE_KEY,
+        JSON.stringify(
+          Object.fromEntries(
+            Object.entries(nextTabsByWs).map(([id, tabs]) => [
+              id,
+              tabs.map(t => t.path),
+            ])
+          )
+        )
+      );
+
+      localStorage.setItem(
+        ACTIVE_TAB_BY_WORKSPACE_KEY,
+        JSON.stringify(nextActiveByWs)
+      );
+
       return {
         tabs: nextTabs,
-        activeTabIndex: nextTabs.length - 1,
-
-        tabsByWorkspace: {
-          ...state.tabsByWorkspace,
-          [wsId]: nextTabs,
-        },
-
-        activeTabIndexByWorkspace: {
-          ...state.activeTabIndexByWorkspace,
-          [wsId]: nextTabs.length - 1,
-        },
+        activeTabIndex: nextIndex,
+        tabsByWorkspace: nextTabsByWs,
+        activeTabIndexByWorkspace: nextActiveByWs,
       };
+
     });
   },
 
@@ -314,16 +341,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
     setActiveTab: index => {
-    const wsId = get().focusedWorkspaceId;
-    if (!wsId) return;
+      const wsId = get().focusedWorkspaceId;
+      if (!wsId) return;
 
-    set(state => ({
-      activeTabIndex: index,
-      activeTabIndexByWorkspace: {
-        ...state.activeTabIndexByWorkspace,
-        [wsId]: index,
-      },
-    }));
+      set(state => {
+        const nextActive = {
+          ...state.activeTabIndexByWorkspace,
+          [wsId]: index,
+        };
+
+        localStorage.setItem(
+          ACTIVE_TAB_BY_WORKSPACE_KEY,
+          JSON.stringify(nextActive)
+        );
+
+        return {
+          activeTabIndex: index,
+          activeTabIndexByWorkspace: nextActive,
+        };
+      });
+
   },
 
 
@@ -339,20 +376,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (index < newIndex) newIndex -= 1;
       if (newIndex >= tabs.length) newIndex = tabs.length - 1;
 
+      const finalIndex = Math.max(newIndex, 0);
+
+      const nextTabsByWs = {
+        ...state.tabsByWorkspace,
+        [wsId]: tabs,
+      };
+
+      const nextActiveByWs = {
+        ...state.activeTabIndexByWorkspace,
+        [wsId]: finalIndex,
+      };
+
+      localStorage.setItem(
+        OPEN_TABS_BY_WORKSPACE_KEY,
+        JSON.stringify(
+          Object.fromEntries(
+            Object.entries(nextTabsByWs).map(([id, tabs]) => [
+              id,
+              tabs.map(t => t.path),
+            ])
+          )
+        )
+      );
+
+      localStorage.setItem(
+        ACTIVE_TAB_BY_WORKSPACE_KEY,
+        JSON.stringify(nextActiveByWs)
+      );
+
       return {
         tabs,
-        activeTabIndex: Math.max(newIndex, 0),
-
-        tabsByWorkspace: {
-          ...state.tabsByWorkspace,
-          [wsId]: tabs,
-        },
-
-        activeTabIndexByWorkspace: {
-          ...state.activeTabIndexByWorkspace,
-          [wsId]: Math.max(newIndex, 0),
-        },
+        activeTabIndex: finalIndex,
+        tabsByWorkspace: nextTabsByWs,
+        activeTabIndexByWorkspace: nextActiveByWs,
       };
+
     }),
 
 
@@ -508,13 +567,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   restoreTabs: async () => {
-    const rawTabs = JSON.parse(
-      localStorage.getItem(OPEN_TABS_KEY) || "[]"
-    ) as string[];
+    const wsId = get().focusedWorkspaceId;
+    if (!wsId) return;
 
-    const activeIndex = Number(
-      localStorage.getItem(ACTIVE_TAB_KEY) || 0
-    );
+    const tabsByWorkspace = JSON.parse(
+      localStorage.getItem(OPEN_TABS_BY_WORKSPACE_KEY) || "{}"
+    ) as Record<string, string[]>;
+
+    const activeByWorkspace = JSON.parse(
+      localStorage.getItem(ACTIVE_TAB_BY_WORKSPACE_KEY) || "{}"
+    ) as Record<string, number>;
+
+    const paths = tabsByWorkspace[wsId] ?? [];
+    const activeIndex = activeByWorkspace[wsId] ?? 0;
 
     const cursorMap = JSON.parse(
       localStorage.getItem(CURSOR_MAP_KEY) || "{}"
@@ -522,7 +587,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const restored: FileTab[] = [];
 
-    for (const path of rawTabs) {
+    for (const path of paths) {
       if (path === "untitled") continue;
 
       try {
@@ -540,11 +605,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
 
-    set({
+    set(state => ({
       tabs: restored,
       activeTabIndex: Math.min(activeIndex, restored.length - 1),
-    });
+
+      tabsByWorkspace: {
+        ...state.tabsByWorkspace,
+        [wsId]: restored,
+      },
+
+      activeTabIndexByWorkspace: {
+        ...state.activeTabIndexByWorkspace,
+        [wsId]: Math.min(activeIndex, restored.length - 1),
+      },
+    }));
   },
+
 }));
 
 export const selectValidRecentFiles = (state: any) =>
