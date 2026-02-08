@@ -192,17 +192,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   // 🔥 NEW — used later, not yet by UI
-  focusWorkspace: id =>
+  focusWorkspace: id => {
     set(state => ({
       focusedWorkspaceId: id,
       activeWorkspaceIds: state.activeWorkspaceIds.includes(id)
         ? state.activeWorkspaceIds
         : [...state.activeWorkspaceIds, id],
+    }));
 
-      // 🔥 TAB SWAP
-      tabs: state.tabsByWorkspace[id] ?? [],
-      activeTabIndex: state.activeTabIndexByWorkspace[id] ?? 0,
-    })),
+    // 🔥 AUTO-RESTORE TABS FOR THIS WORKSPACE
+    get().restoreTabs();
+  },
+
 
 
 
