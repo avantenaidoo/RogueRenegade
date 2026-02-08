@@ -63,6 +63,11 @@ interface EditorState {
   tabs: FileTab[];
   activeTabIndex: number;
 
+// 🔥 WORKSPACE-SCOPED TABS
+tabsByWorkspace: Record<string, FileTab[]>;
+activeTabIndexByWorkspace: Record<string, number>;
+
+
   addTab: (path: string, content: string) => void;
   updateTab: (index: number, updates: Partial<FileTab>) => void;
   setActiveTab: (index: number) => void;
@@ -189,24 +194,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeWorkspaceIds: state.activeWorkspaceIds.includes(id)
         ? state.activeWorkspaceIds
         : [...state.activeWorkspaceIds, id],
+
+      // 🔥 TAB SWAP
+      tabs: state.tabsByWorkspace[id] ?? [],
+      activeTabIndex: state.activeTabIndexByWorkspace[id] ?? 0,
     })),
+
 
 
   /* ───── EDITOR STATE ───── */
   tabs: [],
   activeTabIndex: 0,
 
+  // 🔥 WORKSPACE-SCOPED
+  tabsByWorkspace: {},
+  activeTabIndexByWorkspace: {},
+
+
   addTab: (path, content) => {
-    const existingIndex = get().tabs.findIndex(t => t.path === path);
+    const wsId = get().focusedWorkspaceId;
+    if (!wsId) return;
+
+    const tabs = get().tabs;
+    const existingIndex = tabs.findIndex(t => t.path === path);
+
     if (existingIndex >= 0) {
-      localStorage.setItem(ACTIVE_TAB_KEY, String(existingIndex));
-      set({ activeTabIndex: existingIndex });
+      set(state => ({
+        activeTabIndex: existingIndex,
+        activeTabIndexByWorkspace: {
+          ...state.activeTabIndexByWorkspace,
+          [wsId]: existingIndex,
+        },
+      }));
       return;
     }
 
     set(state => {
       const nextTabs = [
-        ...state.tabs,
+        ...tabs,
         {
           path,
           content,
@@ -216,21 +241,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
       ];
 
-      localStorage.setItem(
-        OPEN_TABS_KEY,
-        JSON.stringify(nextTabs.map(t => t.path))
-      );
-      localStorage.setItem(
-        ACTIVE_TAB_KEY,
-        String(nextTabs.length - 1)
-      );
-
       return {
         tabs: nextTabs,
         activeTabIndex: nextTabs.length - 1,
+
+        tabsByWorkspace: {
+          ...state.tabsByWorkspace,
+          [wsId]: nextTabs,
+        },
+
+        activeTabIndexByWorkspace: {
+          ...state.activeTabIndexByWorkspace,
+          [wsId]: nextTabs.length - 1,
+        },
       };
     });
   },
+
 
   updateTab: (index, updates) =>
     set(state => {
@@ -286,13 +313,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { tabs };
     }),
 
-  setActiveTab: index => {
-    localStorage.setItem(ACTIVE_TAB_KEY, String(index));
-    set({ activeTabIndex: index });
+    setActiveTab: index => {
+    const wsId = get().focusedWorkspaceId;
+    if (!wsId) return;
+
+    set(state => ({
+      activeTabIndex: index,
+      activeTabIndexByWorkspace: {
+        ...state.activeTabIndexByWorkspace,
+        [wsId]: index,
+      },
+    }));
   },
+
 
   closeTab: index =>
     set(state => {
+      const wsId = state.focusedWorkspaceId;
+      if (!wsId) return state;
+
       const tabs = [...state.tabs];
       tabs.splice(index, 1);
 
@@ -300,17 +339,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (index < newIndex) newIndex -= 1;
       if (newIndex >= tabs.length) newIndex = tabs.length - 1;
 
-      localStorage.setItem(
-        OPEN_TABS_KEY,
-        JSON.stringify(tabs.map(t => t.path))
-      );
-      localStorage.setItem(
-        ACTIVE_TAB_KEY,
-        String(Math.max(newIndex, 0))
-      );
+      return {
+        tabs,
+        activeTabIndex: Math.max(newIndex, 0),
 
-      return { tabs, activeTabIndex: Math.max(newIndex, 0) };
+        tabsByWorkspace: {
+          ...state.tabsByWorkspace,
+          [wsId]: tabs,
+        },
+
+        activeTabIndexByWorkspace: {
+          ...state.activeTabIndexByWorkspace,
+          [wsId]: Math.max(newIndex, 0),
+        },
+      };
     }),
+
 
   markDirty: path =>
     set(state => ({
