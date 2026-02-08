@@ -15,7 +15,7 @@ import { useEditorStore } from "../store";
 
 import { backendFetch } from "../lib/backend";
 
-
+import TerminalPanel from "./Terminal/TerminalPanel";
 interface CanvasProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
@@ -62,6 +62,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   /* 🔥🔥🔥 CHAT MAXIMIZE STATE (THIS WAS MISSING) 🔥🔥🔥 */
   const [isChatMaximized, setIsChatMaximized] = useState(false);
 
+  const [bottomTab, setBottomTab] = useState<"git" | "terminal">("git");
+
+
+
   const activeTab = tabs[activeTabIndex];
 
   /* ───────────── THEME ───────────── */
@@ -84,6 +88,19 @@ export const Canvas: React.FC<CanvasProps> = ({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeTab, markClean]);
+
+  /* ───────────── TOGGLE TERMINAL (CTRL+`) ───────────── */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === "`") {
+        e.preventDefault();
+        setBottomTab((t) => (t === "terminal" ? "git" : "terminal"));
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   /* ───────────── RESIZE HANDLING ───────────── */
   useEffect(() => {
@@ -214,11 +231,17 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       {/* BOTTOM PANEL */}
       {!isChatMaximized && (
-       <div className="h-40 border-t flex">
-        <div className="flex-1 overflow-auto">
-          <GitPanel />
+        <div className="h-40 border-t flex flex-col">
+          <div className="flex border-b text-sm">
+            <button onClick={() => setBottomTab("git")}>Git</button>
+            <button onClick={() => setBottomTab("terminal")}>Terminal</button>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {bottomTab === "git" && <GitPanel />}
+            {bottomTab === "terminal" && <TerminalPanel />}
+          </div>
         </div>
-       </div>
       )}
 
       {/* STATUS BAR */}

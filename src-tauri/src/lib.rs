@@ -42,6 +42,8 @@ mod device_id;
 mod blocked;
 mod device_keys;
 mod request_signing;
+mod terminal;
+
 
 
 /* ─────────────────────────────
@@ -749,6 +751,10 @@ pub fn run() {
             blocked::is_device_blocked,
             blocked::blocked_ban_account_and_device,
             ping_server,
+            terminal::terminal_spawn,
+            terminal::terminal_write,
+            terminal::terminal_kill,
+            terminal::terminal_resize,
         ])
         .setup(|app| {
 
