@@ -91,10 +91,25 @@ export default function AuthGate() {
         // 4️⃣ Device is allowed
         setIsDeviceBlocked(false);
 
-        // 5️⃣ Continue normal auth flow
-        const authState = await invoke<AuthStateFile>("auth_get_state");
-        setState(authState);
-        setLoading(false);
+    // 5️⃣ Continue normal auth flow (WITH HARD BACKEND BAN CHECK)
+    try {
+    const authState = await invoke<AuthStateFile>("auth_get_state");
+    setState(authState);
+    setLoading(false);
+    } catch (err: any) {
+    const msg = String(err);
+
+    if (msg.includes("DEVICE_BANNED") || msg.includes("423")) {
+        // 🔥 Persist ban locally
+        await invoke("blocked_add_device");
+
+        // 🔁 Force re-evaluation → AuthGate will hard-lock
+        window.location.reload();
+        return;
+    }
+
+    throw err; // other errors still bubble
+}
     })();
     }, []);
 

@@ -1,5 +1,8 @@
+// C:\Users\avant\app\DevJavascriptStuff\React_Projects\Vite_Projects\rogue-renegade-ide\src\auth\AdminApprovalPanel.tsx
+
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { backendFetch } from "@/lib/backend";
 
 type PendingAccount = {
   account_id: string;
@@ -11,13 +14,15 @@ interface AdminApprovalPanelProps {
   onActionComplete?: () => void;
 }
 
-
 export default function AdminApprovalPanel({
   onActionComplete,
 }: AdminApprovalPanelProps) {
   const [pending, setPending] = useState<PendingAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /* ─────────────────────────
+     LOAD PENDING ACCOUNTS
+     ───────────────────────── */
   async function load() {
     const res = await invoke<PendingAccount[]>(
       "auth_get_pending_accounts"
@@ -26,34 +31,69 @@ export default function AdminApprovalPanel({
     setLoading(false);
   }
 
-    async function approve(email: string) {
-    await invoke("auth_approve_account", {
-        email,
-    });
-
-    await load();
-    onActionComplete?.(); // ✅ GLOBAL REFRESH
-    }
-
-    async function decline(email: string) {
-    const deviceId = await invoke<string>("get_device_id");
-
-    await invoke("blocked_ban_account_and_device", {
-        email,
-        deviceId,
-    });
-
-    // 🔥 REMOVE FROM UI IMMEDIATELY
-    setPending(prev =>
-        prev.filter(acc => acc.email !== email)
+  /* ─────────────────────────
+     APPROVE ACCOUNT + DEVICE
+     ───────────────────────── */
+  async function approve(email: string) {
+    // ✅ IMMEDIATE UI UPDATE
+    setPending((prev) =>
+      prev.filter((acc) => acc.email !== email)
     );
 
-    onActionComplete?.(); // badge refresh
-    }
+    const deviceId = await invoke<string>("get_device_id");
 
+    // ✅ UPDATE users.json
+    await invoke("auth_approve_account", {
+      email,
+    });
 
+    // ✅ UPDATE backend device state
+    await backendFetch("/admin/approve-device", {
+      method: "POST",
+      body: JSON.stringify({
+        device_id: deviceId,
+      }),
+    });
 
-  
+    onActionComplete?.();
+  }
+
+  /* ─────────────────────────
+     DECLINE = REJECT USER + BAN ACCOUNT + DEVICE
+     ───────────────────────── */
+  async function decline(email: string) {
+    // ✅ IMMEDIATE UI UPDATE
+    setPending((prev) =>
+      prev.filter((acc) => acc.email !== email)
+    );
+
+    const deviceId = await invoke<string>("get_device_id");
+
+    // 🔥 THIS IS THE LINE YOU WERE MISSING
+    // 🔥 THIS UPDATES users.json → approval_status: "Rejected"
+    await invoke("auth_reject_account", {
+      email,
+    });
+
+    // ✅ BAN ACCOUNT + DEVICE (blocked list)
+    await invoke("blocked_ban_account_and_device", {
+      email,
+      deviceId,
+    });
+
+    // ✅ BAN DEVICE IN BACKEND
+    await backendFetch("/admin/ban-device", {
+      method: "POST",
+      body: JSON.stringify({
+        device_id: deviceId,
+      }),
+    });
+
+    onActionComplete?.();
+  }
+
+  /* ───────────────────────── */
+
   useEffect(() => {
     load();
   }, []);
@@ -80,25 +120,29 @@ export default function AdminApprovalPanel({
           className="flex justify-between items-center border p-2 rounded"
         >
           <div className="flex flex-col text-sm">
-        <span className="font-medium">Username: {acc.username}</span>
-        <span className="text-gray-600">Email: {acc.email}</span>
-        </div>
-            <div className="flex gap-2">
+            <span className="font-medium">
+              Username: {acc.username}
+            </span>
+            <span className="text-gray-600">
+              Email: {acc.email}
+            </span>
+          </div>
+
+          <div className="flex gap-2">
             <button
-                className="px-2 py-1 bg-green-600 text-white rounded text-sm"
-                onClick={() => approve(acc.email)}
+              className="px-2 py-1 bg-green-600 text-white rounded text-sm"
+              onClick={() => approve(acc.email)}
             >
-                Approve
+              Approve
             </button>
 
             <button
-                className="px-2 py-1 bg-red-600 text-white rounded text-sm"
-                onClick={() => decline(acc.email)}
+              className="px-2 py-1 bg-red-600 text-white rounded text-sm"
+              onClick={() => decline(acc.email)}
             >
-                Decline
+              Reject
             </button>
-            </div>
-
+          </div>
         </div>
       ))}
     </div>
