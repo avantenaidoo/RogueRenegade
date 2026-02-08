@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import type { Workspace } from "../utils/workspace";
 
 interface FileTab {
   path: string;
@@ -74,6 +75,13 @@ interface EditorState {
   repoPath: string | null;
   setRepoPath: (path: string) => void;
 
+    /* ───── WORKSPACES ───── */
+    workspaces: Workspace[];
+    activeWorkspaceId: string | null;
+
+    loadWorkspaces: () => Promise<void>;
+    setActiveWorkspace: (id: string) => void;
+
   /* ───── COLLABORATION UI ───── */
   showCollaboration: boolean;
   setShowCollaboration: (open: boolean) => void;
@@ -133,6 +141,23 @@ const CURSOR_MAP_KEY = "rride:cursor-map";
 const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
 export const useEditorStore = create<EditorState>((set, get) => ({
+
+    /* ───── WORKSPACES ───── */
+  workspaces: [],
+  activeWorkspaceId: null,
+
+    loadWorkspaces: async () => {
+      const workspaces = await invoke<Workspace[]>("get_workspaces");
+
+      set({
+        workspaces,
+        activeWorkspaceId: workspaces[0]?.id ?? null,
+      });
+    },
+
+    setActiveWorkspace: id =>
+      set({ activeWorkspaceId: id }),
+
   /* ───── EDITOR STATE ───── */
   tabs: [],
   activeTabIndex: 0,

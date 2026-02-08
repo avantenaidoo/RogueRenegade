@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use device_id::get_device_id;
 use device_keys::{get_or_create_device_key, public_key_base64};
 use crate::request_signing::sign_request;
+use workspace::create_default_workspace;
+
 
 
 
@@ -43,6 +45,8 @@ mod blocked;
 mod device_keys;
 mod request_signing;
 mod terminal;
+mod workspace;
+
 
 
 
@@ -755,6 +759,7 @@ pub fn run() {
             terminal::terminal_write,
             terminal::terminal_kill,
             terminal::terminal_resize,
+            workspace::get_workspaces,
         ])
         .setup(|app| {
 

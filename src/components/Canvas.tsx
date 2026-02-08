@@ -29,6 +29,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   pendingApprovalCount,
   refreshPendingApprovals,
 }) => {
+    /* ───────────── WORKSPACE BOOTSTRAP (RUN ONCE) ───────────── */
+    useEffect(() => {
+      useEditorStore.getState().loadWorkspaces();
+    }, []);
   const {
     tabs,
     activeTabIndex,
