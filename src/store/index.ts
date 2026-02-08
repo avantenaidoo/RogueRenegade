@@ -75,12 +75,20 @@ interface EditorState {
   repoPath: string | null;
   setRepoPath: (path: string) => void;
 
-    /* ───── WORKSPACES ───── */
-    workspaces: Workspace[];
-    activeWorkspaceId: string | null;
+  /* ───── WORKSPACES ───── */
+  workspaces: Workspace[];
 
-    loadWorkspaces: () => Promise<void>;
-    setActiveWorkspace: (id: string) => void;
+  // CURRENT BEHAVIOR (kept)
+  activeWorkspaceId: string | null;
+
+  // 🔥 FUTURE-PROOF (ADDED)
+  activeWorkspaceIds: string[];
+  focusedWorkspaceId: string | null;
+
+  loadWorkspaces: () => Promise<void>;
+  setActiveWorkspace: (id: string) => void;
+  focusWorkspace: (id: string) => void;
+
 
   /* ───── COLLABORATION UI ───── */
   showCollaboration: boolean;
@@ -142,21 +150,47 @@ const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
 export const useEditorStore = create<EditorState>((set, get) => ({
 
-    /* ───── WORKSPACES ───── */
+  /* ───── WORKSPACES ───── */
   workspaces: [],
   activeWorkspaceId: null,
 
-    loadWorkspaces: async () => {
-      const workspaces = await invoke<Workspace[]>("get_workspaces");
+  // 🔥 ADDED (does NOT break existing logic)
+  activeWorkspaceIds: [],
+  focusedWorkspaceId: null,
 
-      set({
-        workspaces,
-        activeWorkspaceId: workspaces[0]?.id ?? null,
-      });
-    },
+  loadWorkspaces: async () => {
+    const workspaces = await invoke<Workspace[]>("get_workspaces");
 
-    setActiveWorkspace: id =>
-      set({ activeWorkspaceId: id }),
+    const firstId = workspaces[0]?.id ?? null;
+
+    set({
+      workspaces,
+
+      // existing behavior preserved
+      activeWorkspaceId: firstId,
+
+      // new future-proof state
+      activeWorkspaceIds: firstId ? [firstId] : [],
+      focusedWorkspaceId: firstId,
+    });
+  },
+
+  setActiveWorkspace: id =>
+    set({
+      activeWorkspaceId: id,
+      focusedWorkspaceId: id,
+      activeWorkspaceIds: [id],
+    }),
+
+  // 🔥 NEW — used later, not yet by UI
+  focusWorkspace: id =>
+    set(state => ({
+      focusedWorkspaceId: id,
+      activeWorkspaceIds: state.activeWorkspaceIds.includes(id)
+        ? state.activeWorkspaceIds
+        : [...state.activeWorkspaceIds, id],
+    })),
+
 
   /* ───── EDITOR STATE ───── */
   tabs: [],
