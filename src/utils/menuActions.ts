@@ -1,28 +1,71 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEditorStore } from "../store";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+
 
 /* ✅ FIX: LOCAL NORMALIZE (DO NOT REMOVE) */
 const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
 export async function runMenuAction(action?: string) {
+  console.log("[MENU ACTION FIRED]", action);
   if (!action) return;
 
   const store = useEditorStore.getState();
-  const appWindow = getCurrentWindow();
 
   const activeIndex = store.activeTabIndex;
   const activeTab = store.tabs[activeIndex];
 
   switch (action) {
     /* ─────────────────────────────
-       NEW FILE
-       ───────────────────────────── */
-    case "newFile":
+   NEW WINDOW (BLANK)
+   ───────────────────────────── */
+    case "newWindow": {
+      console.log("[NEW WINDOW] about to create");
+
+      const label = `rride-${Date.now()}`;
+      console.log("[NEW WINDOW] label =", label);
+
+      const win = new WebviewWindow(label, {
+        url: "index.html",
+        title: "Rogue Renegade IDE",
+      });
+
+      // 🔴 VERY IMPORTANT DEBUG HOOKS
+      win.once("tauri://created", () => {
+        console.log("[NEW WINDOW] CREATED OK");
+      });
+
+      win.once("tauri://error", (e) => {
+        console.error("[NEW WINDOW] ERROR", e);
+      });
+
+      console.log("[NEW WINDOW] constructor finished");
+      break;
+    }
+
+  /* ─────────────────────────────
+   NEW TEXT FILE (UNTITLED)
+   ───────────────────────────── */
+    case "newTextFile":
       store.addTab("untitled", "");
       break;
+/* ─────────────────────────────
+   NEW FILE (CREATE ON DISK)
+   ───────────────────────────── */
+    case "newFile": {
+      const newPath = await save();
+      if (!newPath) return;
 
+      await invoke("write_file", {
+        path: newPath,
+        contents: "",
+      });
+
+      store.addTab(newPath, "");
+      store.addRecentFile(newPath);
+      break;
+    }
     /* ─────────────────────────────
        OPEN FILE
        ───────────────────────────── */
@@ -116,9 +159,23 @@ export async function runMenuAction(action?: string) {
     /* ─────────────────────────────
        EXIT
        ───────────────────────────── */
-    case "exit":
-      await appWindow.close();
+    case "exit": {
+      const store = useEditorStore.getState();
+
+      await invoke("log_and_exit", {
+        lastWorkspace: store.repoPath,
+        openFiles: store.tabs.map(t => t.path),
+        activeFile: store.tabs[store.activeTabIndex]?.path ?? null,
+        cursors: store.tabs
+          .filter(t => t.path && t.cursor)
+          .map(t => ({
+            path: t.path!,
+            cursor: t.cursor!
+          }))
+      });
+
       break;
+    }
 
     default:
       console.warn("Unhandled menu action:", action);

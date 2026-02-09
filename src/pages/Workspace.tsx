@@ -37,6 +37,9 @@ export default function Workspace({
 
   const appWindow = getCurrentWindow();
 
+  let isClosing = false;
+
+
   /* ─────────────────────────────
      INIT COLLAB
      ───────────────────────────── */
@@ -57,14 +60,8 @@ export default function Workspace({
      💾 SAVE SESSION + AUTO SAVE + CURSORS
      ───────────────────────────── */
   useEffect(() => {
-    const saveSession = async () => {
+    const saveSessionOnly = async () => {
       const state = useEditorStore.getState();
-
-      console.log("🧠 STATE AT EXIT", {
-        tabs: state.tabs,
-        activeTabIndex: state.activeTabIndex,
-        repoPath: state.repoPath
-      });
 
       const activeTab =
         state.tabs.length > 0
@@ -78,26 +75,18 @@ export default function Workspace({
       const cursors = state.tabs
         .filter(t => t.path && t.cursor)
         .map(t => ({
-          path: t.path,
-          cursor: t.cursor
+          path: t.path!,
+          cursor: t.cursor!
         }));
 
-      console.log("💾 SAVING SESSION PAYLOAD", {
-        last_workspace: state.repoPath ?? null,
-        open_files: openFiles,
-        active_file: activeTab?.path ?? null,
-        cursors
-      });
-
-      // 🔥 AUTO-SAVE DIRTY FILES
+      // auto-save dirty files
       for (const tab of state.tabs) {
         if (tab.dirty && tab.path && tab.path !== "untitled") {
           await writeTextFile(tab.path, tab.content);
-          console.log("💾 AUTO-SAVED", tab.path);
         }
       }
 
-      await invoke("log_and_exit", {
+      await invoke("save_session", {
         lastWorkspace: state.repoPath ?? null,
         openFiles,
         activeFile: activeTab?.path ?? null,
@@ -105,20 +94,39 @@ export default function Workspace({
       });
     };
 
+    const saveSessionAndExit = async () => {
+      await saveSessionOnly();
+      await invoke("exit_app");
+    };
+
+
     // MENU EXIT
     const unlistenMenu = listen("menu-exit", async () => {
       console.log("🚪 MENU EXIT");
-      await saveSession();
+      await saveSessionOnly();
     });
 
     // REAL WINDOW CLOSE (TAURI v2)
     const unlistenClose = appWindow.onCloseRequested(
       async (event: CloseRequestedEvent) => {
-        console.log("❌ WINDOW CLOSE (PREVENTED)");
+        if (isClosing) {
+          console.log("🟢 CLOSE: already handled, letting window close");
+          return;
+        }
+
+        console.log("🛑 CLOSE REQUEST INTERCEPTED");
         event.preventDefault();
-        await saveSession();
+
+        isClosing = true;
+
+        console.log("💾 CLOSE: saving session");
+        await saveSessionOnly();
+
+        console.log("🚪 CLOSE: closing window for real");
+        await appWindow.close();
       }
     );
+
 
     return () => {
       unlistenMenu.then((f: () => void) => f());

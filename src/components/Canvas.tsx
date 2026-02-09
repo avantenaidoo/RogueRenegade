@@ -42,7 +42,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     setActiveTab,
     closeTab,
     updateTab,
-    markDirty,
     markClean,
     showCollaboration,
   } = useEditorStore();

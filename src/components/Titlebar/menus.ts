@@ -2,7 +2,10 @@ export const menus = [
   {
     label: "File",
     items: [
-      { label: "New File", action: "newFile" },
+      { label: "New Text File", action: "newTextFile" },
+      { label: "New File…", action: "newFile" },
+      { label: "New Window", action: "newWindow" },
+      { type: "separator" },
       { label: "Open File…", action: "openFile" },
       { label: "Open Folder…", action: "openFolder" },
       { label: "Open Recent", submenu: true },

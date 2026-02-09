@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
 use tauri_plugin_fs::FsExt;
 use std::fs;
 use git2::{Repository, StatusOptions};
@@ -232,6 +232,16 @@ fn get_last_session(app: AppHandle) -> Result<LastSession, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let path = dir.join("last_session.json");
 
+    if !path.exists() {
+        println!("📭 No last_session.json — returning empty session");
+        return Ok(LastSession {
+            last_workspace: None,
+            open_files: vec![],
+            active_file: None,
+            cursors: vec![],
+        });
+    }
+
     let contents = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read last_session.json: {}", e))?;
 
@@ -241,6 +251,7 @@ fn get_last_session(app: AppHandle) -> Result<LastSession, String> {
     println!("📤 get_last_session -> {:?}", session);
     Ok(session)
 }
+
 
 /* ─────────────────────────────
    AUTH STATE FILE
@@ -614,6 +625,58 @@ fn auth_get_pending_accounts(app: AppHandle) -> Result<Vec<PendingAccount>, Stri
 /* ─────────────────────────────
    EXIT + SAVE SESSION
    ───────────────────────────── */
+fn save_session_internal(
+    app: &AppHandle,
+    last_workspace: Option<String>,
+    open_files: Vec<String>,
+    active_file: Option<String>,
+    cursors: Vec<CursorEntry>,
+) -> Result<(), String> {
+    let session = LastSession {
+        last_workspace: last_workspace.clone(),
+        open_files: open_files.clone(),
+        active_file: active_file.clone(),
+        cursors,
+    };
+
+    if let Some(ws) = &session.last_workspace {
+        menu::add_recent(ws.clone());
+    }
+
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let path = dir.join("last_session.json");
+
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&session).unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+
+    println!("💾 Session saved to {:?}", path);
+    Ok(())
+}
+
+#[tauri::command]
+fn save_session(
+    app: AppHandle,
+    last_workspace: Option<String>,
+    open_files: Vec<String>,
+    active_file: Option<String>,
+    cursors: Vec<CursorEntry>,
+) -> Result<(), String> {
+    println!("💾 save_session (window close)");
+    save_session_internal(
+        &app,
+        last_workspace,
+        open_files,
+        active_file,
+        cursors,
+    )
+}
+
+
+
 #[tauri::command]
 fn log_and_exit(
     app: AppHandle,
@@ -624,52 +687,20 @@ fn log_and_exit(
 ) {
     println!("🚪 EXIT REQUEST RECEIVED");
 
-    let session = LastSession {
-        last_workspace: last_workspace.clone(),
-        open_files: open_files.clone(),
-        active_file: active_file.clone(),
+    if let Err(e) = save_session_internal(
+        &app,
+        last_workspace,
+        open_files,
+        active_file,
         cursors,
-    };
-
-    if let Some(ws) = &session.last_workspace {
-        println!("📁 Last workspace before exit: {}", ws);
-        menu::add_recent(ws.clone());
-    }
-
-    println!("📂 Open files:");
-    for f in &session.open_files {
-        println!("   • {}", f);
-    }
-
-    if let Some(active) = &session.active_file {
-        println!("⭐ Active file: {}", active);
-    }
-
-    println!("📍 Saved cursors:");
-    for c in &session.cursors {
-        println!(
-            "   • {} @ line {}, col {}",
-            c.path, c.cursor.line_number, c.cursor.column
-        );
-    }
-
-    match app.path().app_data_dir() {
-        Ok(dir) => {
-            let path = dir.join("last_session.json");
-            if let Err(e) = fs::create_dir_all(&dir)
-                .and_then(|_| fs::write(&path, serde_json::to_string_pretty(&session)?))
-            {
-                eprintln!("❌ Failed to save last session: {}", e);
-            } else {
-                println!("💾 Last session saved to {:?}", path);
-            }
-        }
-        Err(e) => eprintln!("❌ Could not resolve app data directory: {}", e),
+    ) {
+        eprintln!("❌ Failed to save session: {}", e);
     }
 
     println!("👋 Shutting down application now...");
     app.exit(0);
 }
+
 
 #[tauri::command]
 async fn ping_server() -> Result<String, String> {
@@ -760,6 +791,7 @@ pub fn run() {
             terminal::terminal_kill,
             terminal::terminal_resize,
             workspace::get_workspaces,
+            save_session,
         ])
         .setup(|app| {
 
@@ -815,6 +847,11 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("❌ Error while running Tauri application");
+        .build(tauri::generate_context!())
+        .expect("❌ Error while building Tauri application")
+        .run(|_app_handle, event| {
+            if let RunEvent::ExitRequested { .. } = event {
+                println!("🚪 Exit requested — allowing shutdown");
+            }
+        });
 }
