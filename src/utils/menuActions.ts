@@ -29,6 +29,9 @@ export async function runMenuAction(action?: string) {
       const win = new WebviewWindow(label, {
         url: "index.html?blank=true",
         title: "Rogue Renegade IDE",
+
+        decorations: false, 
+        transparent: false,
       });
 
       // 🔴 VERY IMPORTANT DEBUG HOOKS

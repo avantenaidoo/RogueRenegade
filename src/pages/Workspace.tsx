@@ -133,8 +133,18 @@ export default function Workspace({
       }
     );
 
+    // 🔄 PAGE RELOAD (Ctrl+R / Dev Refresh)
+    const handleBeforeUnload = () => {
+      console.log("🔄 RELOAD — saving session");
+      saveSessionOnly();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+
 
     return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       unlistenMenu.then((f: () => void) => f());
       unlistenClose.then((f: () => void) => f());
     };
