@@ -72,6 +72,10 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const [bottomTab, setBottomTab] = useState<"git" | "terminal">("git");
 
+  const [terminalHeight, setTerminalHeight] = useState(260);
+  const terminalDragging = React.useRef(false);
+
+
 
 
   // 🔥 WORKSPACE-AWARE TAB DERIVATION
@@ -154,6 +158,31 @@ export const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     console.log("showDashboard =", showDashboard);
   }, [showDashboard]);
+
+  useEffect(() => {
+  function onMouseMove(e: MouseEvent) {
+    if (!terminalDragging.current) return;
+
+    setTerminalHeight(h =>
+      Math.min(600, Math.max(120, h - e.movementY))
+    );
+  }
+
+  function onMouseUp() {
+    terminalDragging.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }
+
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+
+  return () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+}, []);
+
 
 
   return (
@@ -256,18 +285,35 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       {/* BOTTOM PANEL */}
       {!isChatMaximized && (
-        <div className="h-40 border-t flex flex-col">
-          <div className="flex border-b text-sm">
+        <div
+          className="border-t flex flex-col"
+          style={{ height: terminalHeight }}
+        >
+          {/* RESIZE HANDLE */}
+          <div
+            className="h-1 bg-neutral-700 hover:bg-blue-500/50"
+            style={{ cursor: "ns-resize" }}
+            onMouseDown={() => {
+              terminalDragging.current = true;
+              document.body.style.cursor = "ns-resize";
+              document.body.style.userSelect = "none";
+            }}
+          />
+
+          {/* TAB BAR */}
+          <div className="flex border-b text-sm shrink-0">
             <button onClick={() => setBottomTab("git")}>Git</button>
             <button onClick={() => setBottomTab("terminal")}>Terminal</button>
           </div>
 
+          {/* CONTENT */}
           <div className="flex-1 overflow-hidden">
             {bottomTab === "git" && <GitPanel />}
             {bottomTab === "terminal" && <TerminalPanel />}
           </div>
         </div>
       )}
+
 
       {/* STATUS BAR */}
       {!isChatMaximized && (
