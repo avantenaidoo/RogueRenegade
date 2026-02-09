@@ -37,6 +37,12 @@ export default function Workspace({
 
   const appWindow = getCurrentWindow();
 
+  const isBlankWindow =
+    new URLSearchParams(window.location.search).get("blank") === "true";
+
+  console.log("🪟 WINDOW MODE", window.location.href, isBlankWindow);
+
+
   let isClosing = false;
 
 
@@ -138,6 +144,11 @@ export default function Workspace({
      🔁 RESTORE SESSION + CURSORS
      ───────────────────────────── */
   useEffect(() => {
+    if (isBlankWindow) {
+      console.log("🆕 BLANK WINDOW — skipping session restore");
+      return;
+    }
+
     (async () => {
       console.log("🔁 REQUESTING LAST SESSION FROM RUST");
 
@@ -150,6 +161,7 @@ export default function Workspace({
           cursor: { lineNumber: number; column: number };
         }[];
       }>("get_last_session");
+
 
       console.log("📥 SESSION RECEIVED FROM RUST", session);
 
