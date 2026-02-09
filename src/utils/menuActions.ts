@@ -30,6 +30,11 @@ export async function runMenuAction(action?: string) {
         url: "index.html?blank=true",
         title: "Rogue Renegade IDE",
 
+        width: 1400,
+        height: 900,
+        minWidth: 1000,
+        minHeight: 700,
+
         decorations: false, 
         transparent: false,
       });
