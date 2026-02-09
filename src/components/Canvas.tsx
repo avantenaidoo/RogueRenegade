@@ -354,7 +354,6 @@ useEffect(() => {
       {!isChatMaximized && (
         <div
           className="border-t flex flex-col"
-          style={{ height: terminalHeight }}
         >
           {/* RESIZE HANDLE */}
           <div
@@ -375,9 +374,36 @@ useEffect(() => {
 
           {/* CONTENT */}
           <div className="flex-1 overflow-hidden">
-            {bottomTab === "git" && <GitPanel />}
-            {bottomTab === "terminal" && <TerminalPanel />}
+            {bottomTab === "git" && (
+              <div className="h-full overflow-hidden">
+                <GitPanel />
+              </div>
+            )}
+
+            {bottomTab === "terminal" && (
+              <>
+                {/* TERMINAL RESIZE HANDLE */}
+                <div
+                  className="h-1 bg-neutral-700 hover:bg-blue-500/50"
+                  style={{ cursor: "ns-resize" }}
+                  onMouseDown={() => {
+                    terminalDragging.current = true;
+                    document.body.style.cursor = "ns-resize";
+                    document.body.style.userSelect = "none";
+                  }}
+                />
+
+                {/* TERMINAL ONLY */}
+                <div
+                  style={{ height: terminalHeight }}
+                  className="overflow-hidden"
+                >
+                  <TerminalPanel />
+                </div>
+              </>
+            )}
           </div>
+
         </div>
       )}
 
