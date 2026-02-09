@@ -84,8 +84,7 @@ export function MenuItem({ item, closeMenu }: any) {
 
                 const store = useEditorStore.getState();
 
-                await invoke("allow_workspace_dir", { path });
-                store.setRepoPath(path);
+                await store.switchWorkspace(path);
               }}
             >
               {path}

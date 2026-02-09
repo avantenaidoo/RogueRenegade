@@ -42,6 +42,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     setActiveTab,
     closeTab,
     updateTab,
+    markDirty,
     markClean,
     showCollaboration,
   } = useEditorStore();
@@ -101,7 +102,10 @@ export const Canvas: React.FC<CanvasProps> = ({
         if (!activeTab) return;
 
         await writeTextFile(activeTab.path, activeTab.content);
-        markClean(activeTab.path);
+        updateTab(workspaceActiveIndex, {
+          savedContent: activeTab.content,
+        });
+
       }
     }
 
@@ -211,6 +215,8 @@ export const Canvas: React.FC<CanvasProps> = ({
                   path={activeTab.path}
                   theme={theme}
                   onChange={(val) => {
+                    if (!activeTab) return;
+
                     updateTab(workspaceActiveIndex, { content: val ?? "" });
                   }}
                 />

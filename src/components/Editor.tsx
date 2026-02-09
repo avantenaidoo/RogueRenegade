@@ -138,6 +138,18 @@ export default function Editor({
     });
   };
 
+  useEffect(() => {
+    const handler = () => {
+      modelsRef.current.forEach(model => model.dispose());
+      modelsRef.current.clear();
+    };
+
+    window.addEventListener("workspace-changed", handler);
+    return () =>
+      window.removeEventListener("workspace-changed", handler);
+  }, []);
+
+
   /* ─────────────────────────────
      🔥 SWITCH MODEL ON FILE CHANGE
      ───────────────────────────── */

@@ -57,19 +57,36 @@ export default function GitStatus() {
     return () => clearInterval(id);
   }, [activeTab]);
 
+  useEffect(() => {
+    const handler = () => updateStatus();
+    window.addEventListener("workspace-changed", handler);
+    return () =>
+      window.removeEventListener("workspace-changed", handler);
+  }, []);
+
+
   /* ───────────── DIRTY MERGE (VS CODE STYLE) ───────────── */
 
-  const editorDirty = tabs.filter(t => t.dirty).map(t => t.path);
+const editorDirty = tabs.filter(t => t.dirty).map(t => t.path);
+
+// 🔥 VS CODE BEHAVIOR:
+// If editor is clean, suppress git-dirty until file is saved
+  const effectiveGitDirty = gitDirtyFiles.filter(gitPath =>
+    editorDirty.some(
+      editorPath => basename(editorPath) === basename(gitPath)
+    )
+  );
 
   const allDirty = Array.from(
-    new Set([...editorDirty, ...gitDirtyFiles])
+    new Set([...editorDirty, ...effectiveGitDirty])
   );
+
 
   function label(filePath: string) {
     const name = basename(filePath);
 
     const editor = editorDirty.some(p => basename(p) === name);
-    const git = gitDirtyFiles.some(p => basename(p) === name);
+    const git = effectiveGitDirty.some(p => basename(p) === name);
 
     if (editor && git) return `${name} (unsaved + git)`;
     if (editor) return `${name} (unsaved)`;

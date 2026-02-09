@@ -49,6 +49,14 @@ export default function StatusBar() {
     updateGitInfo();
   }, [activeTab]);
 
+  useEffect(() => {
+    const handler = () => updateGitInfo();
+    window.addEventListener("workspace-changed", handler);
+    return () =>
+      window.removeEventListener("workspace-changed", handler);
+  }, []);
+
+
   return (
     // <div className="h-6 px-2 flex items-center justify-between text-xs bg-muted border-t border-default">
     <div className="flex-1 px-3 flex items-center justify-end text-xs bg-muted border-t border-default">

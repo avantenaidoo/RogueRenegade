@@ -66,8 +66,7 @@ interface EditorState {
 // 🔥 WORKSPACE-SCOPED TABS
 tabsByWorkspace: Record<string, FileTab[]>;
 activeTabIndexByWorkspace: Record<string, number>;
-
-
+switchWorkspace: (path: string) => Promise<void>;
   addTab: (path: string, content: string) => void;
   updateTab: (index: number, updates: Partial<FileTab>) => void;
   setActiveTab: (index: number) => void;
@@ -289,7 +288,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateTab: (index, updates) =>
     set(state => {
-      const tabs = [...state.tabs];
+      const wsId = state.focusedWorkspaceId;
+      if (!wsId) return state;
+
+      const tabs = [...(state.tabsByWorkspace[wsId] ?? [])];
       const tab = tabs[index];
 
       if (!tab) {
@@ -298,10 +300,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           return state;
         }
 
+        const normalized = normalize(updates.content);
+
         tabs[index] = {
           path: updates.path,
-          content: updates.content,
-          savedContent: updates.content,
+          content: normalized,
+          savedContent: normalized,
           branch: updates.branch ?? null,
           dirty: false,
         };
@@ -321,10 +325,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...updates,
           content: nextContent,
           savedContent: nextSaved,
-          dirty: nextContent !== nextSaved,
+          dirty: nextContent !== nextSaved, // 🔥 UNDO FIX
         };
       }
 
+      // cursor persistence unchanged
       if (updates.cursor) {
         const map = JSON.parse(
           localStorage.getItem(CURSOR_MAP_KEY) || "{}"
@@ -333,13 +338,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         localStorage.setItem(CURSOR_MAP_KEY, JSON.stringify(map));
       }
 
-      localStorage.setItem(
-        OPEN_TABS_KEY,
-        JSON.stringify(tabs.map(t => t.path))
-      );
-
-      return { tabs };
+      return {
+        tabs, // legacy mirror
+        tabsByWorkspace: {
+          ...state.tabsByWorkspace,
+          [wsId]: tabs,
+        },
+      };
     }),
+
 
     setActiveTab: index => {
       const wsId = get().focusedWorkspaceId;
@@ -417,18 +424,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
 
   markDirty: path =>
-    set(state => ({
-      tabs: state.tabs.map(tab =>
-        tab.path === path ? { ...tab, dirty: true } : tab
-      ),
-    })),
+    set(state => {
+      const wsId = state.focusedWorkspaceId;
+      if (!wsId) return state;
+
+      const update = (tabs: FileTab[]) =>
+        tabs.map(tab =>
+          tab.path === path ? { ...tab, dirty: true } : tab
+        );
+
+      return {
+        tabs: update(state.tabs),
+        tabsByWorkspace: {
+          ...state.tabsByWorkspace,
+          [wsId]: update(state.tabsByWorkspace[wsId] ?? []),
+        },
+      };
+    }),
+
 
   markClean: path =>
-    set(state => ({
-      tabs: state.tabs.map(tab =>
-        tab.path === path ? { ...tab, dirty: false } : tab
-      ),
-    })),
+    set(state => {
+      const wsId = state.focusedWorkspaceId;
+      if (!wsId) return state;
+
+      const update = (tabs: FileTab[]) =>
+        tabs.map(tab =>
+          tab.path === path ? { ...tab, dirty: false } : tab
+        );
+
+      return {
+        tabs: update(state.tabs),
+        tabsByWorkspace: {
+          ...state.tabsByWorkspace,
+          [wsId]: update(state.tabsByWorkspace[wsId] ?? []),
+        },
+      };
+    }),
+
 
   /* ───── WORKSPACE ───── */
   repoPath: null,
@@ -621,6 +654,59 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     }));
   },
+
+  switchWorkspace: async (path: string) => {
+  const state = get();
+
+  // 1️⃣ Allow Tauri access
+  await invoke("allow_workspace_dir", { path });
+
+  // 2️⃣ Find or create workspace
+  const existing = state.workspaces.find(
+    w => w.root_path === path
+  );
+
+  const workspace: Workspace =
+    existing ??
+    {
+      id: crypto.randomUUID(),
+      root_path: path,
+    };
+
+  if (!existing) {
+    set(s => ({
+      workspaces: [...s.workspaces, workspace],
+    }));
+  }
+
+  const wsId = workspace.id;
+
+
+  // 3️⃣ Switch workspace identity
+  set({
+    repoPath: path,
+    activeWorkspaceId: wsId,
+    focusedWorkspaceId: wsId,
+  });
+
+  // 4️⃣ Bind editor state to this workspace
+  set(state => ({
+    tabs: state.tabsByWorkspace[wsId] ?? [],
+    activeTabIndex: state.activeTabIndexByWorkspace[wsId] ?? 0,
+  }));
+
+  // 5️⃣ Recents
+  state.addRecentFolder(path);
+
+  // 6️⃣ GLOBAL WORKSPACE CHANGE SIGNAL
+  window.dispatchEvent(
+    new CustomEvent("workspace-changed", {
+      detail: { root_path: path, workspaceId: wsId },
+    })
+  );
+
+},
+
 
 }));
 
