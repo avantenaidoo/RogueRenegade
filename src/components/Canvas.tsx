@@ -33,6 +33,15 @@ export const Canvas: React.FC<CanvasProps> = ({
     useEffect(() => {
       useEditorStore.getState().loadWorkspaces();
     }, []);
+
+    /* 🔥 LOAD FILE EXPLORER WIDTH */
+    useEffect(() => {
+      const saved = localStorage.getItem("explorerWidth");
+      if (saved) {
+        setExplorerWidth(Number(saved));
+      }
+    }, []);
+
   const {
     // 🔥 workspace-aware
     focusedWorkspaceId,
@@ -65,6 +74,11 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   /* 🔥 COLLAB SIDEBAR WIDTH */
   const [collabWidth, setCollabWidth] = useState(320);
+
+  /* 🔥 FILE EXPLORER WIDTH */
+  const [explorerWidth, setExplorerWidth] = useState(240);
+  const [isExplorerResizing, setIsExplorerResizing] = useState(false);
+
   const [isResizing, setIsResizing] = useState(false);
 
   /* 🔥🔥🔥 CHAT MAXIMIZE STATE (THIS WAS MISSING) 🔥🔥🔥 */
@@ -185,6 +199,34 @@ export const Canvas: React.FC<CanvasProps> = ({
   };
 }, []);
 
+useEffect(() => {
+  function onMouseMove(e: MouseEvent) {
+    if (!isExplorerResizing || isChatMaximized) return;
+
+    const newWidth = e.clientX;
+    if (newWidth >= 180 && newWidth <= 420) {
+      setExplorerWidth(newWidth);
+    }
+  }
+
+  function onMouseUp() {
+    setIsExplorerResizing(false);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }
+
+  if (isExplorerResizing) {
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
+
+  return () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+}, [isExplorerResizing, isChatMaximized]);
+
+
 
 
   return (
@@ -196,9 +238,27 @@ export const Canvas: React.FC<CanvasProps> = ({
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT — FILE EXPLORER */}
         {!isChatMaximized && (
-          <div className="w-60 border-r overflow-auto">
-            <FileExplorer />
-          </div>
+            <div
+              className="flex border-r overflow-hidden"
+              style={{ width: explorerWidth }}
+            >
+              {/* CONTENT */}
+              <div className="flex-1 overflow-auto">
+                <FileExplorer />
+              </div>
+
+              {/* RESIZE HANDLE */}
+              <div
+                className="w-1 hover:bg-blue-500/40"
+                style={{ cursor: "ew-resize" }}
+                onMouseDown={() => {
+                  setIsExplorerResizing(true);
+                  document.body.style.cursor = "ew-resize";
+                  document.body.style.userSelect = "none";
+                }}
+              />
+            </div>
+
         )}
 
         {/* CENTER — EDITOR */}
