@@ -142,6 +142,8 @@ export const Canvas: React.FC<CanvasProps> = ({
 
     function onMouseUp() {
       setIsResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     }
 
     if (isResizing) {
@@ -264,8 +266,13 @@ export const Canvas: React.FC<CanvasProps> = ({
             {/* RESIZE HANDLE (DISABLED WHEN MAXIMIZED) */}
             {!isChatMaximized && (
               <div
-                className="w-1 cursor-col-resize hover:bg-blue-500/40"
-                onMouseDown={() => setIsResizing(true)}
+                className="w-1 hover:bg-blue-500/40"
+                style={{ cursor: "ew-resize" }}
+                onMouseDown={() => {
+                  setIsResizing(true);
+                  document.body.style.cursor = "ew-resize";
+                  document.body.style.userSelect = "none";
+                }}
               />
             )}
 
