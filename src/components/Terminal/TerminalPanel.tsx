@@ -5,14 +5,29 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 
-export default function TerminalPanel() {
+export default function TerminalPanel({
+  workspaceId,
+  workspaceRoot,
+}: {
+  workspaceId: string | null;
+  workspaceRoot: string | null;
+}) {
+  const prevWorkspaceIdRef = useRef<string | null>(null);
+  
+  const terminalIdRef = useRef<string | null>(null);
+  
   const containerRef = useRef<HTMLDivElement>(null);
+  
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(null);
 
-  /* ───────────── SPAWN TERMINAL ONCE ───────────── */
-  useEffect(() => {
+  const displayPath = workspaceRoot ?? "~";
+
+
+
+  /* ───────────── SPAWN TERMINAL PER WORKSPACE ───────────── */
+    useEffect(() => {
     if (!containerRef.current) return;
 
     const term = new Terminal({ cursorBlink: true });
@@ -23,32 +38,51 @@ export default function TerminalPanel() {
     fit.fit();
 
     term.onData((data) => {
-      if (terminalId) {
-        invoke("terminal_write", { id: terminalId, data });
-      }
+        if (terminalIdRef.current) {
+        invoke("terminal_write", {
+            id: terminalIdRef.current,
+            data,
+        });
+        }
     });
 
     termRef.current = term;
     fitRef.current = fit;
 
-    invoke<string>("terminal_spawn", { shell: null }).then(setTerminalId);
+    // 🔥 ONLY SPAWN WHEN WORKSPACE ACTUALLY CHANGES
+    if (prevWorkspaceIdRef.current !== workspaceId) {
+        console.log("[TERMINAL][FE] spawning for workspace", workspaceId);
+
+        invoke<string>("terminal_spawn", {
+        shell: null,
+        cwd: workspaceRoot ?? undefined, // blank window = system root
+        }).then((id) => {
+        terminalIdRef.current = id;
+        setTerminalId(id);
+        });
+
+        prevWorkspaceIdRef.current = workspaceId;
+    }
 
     const unlistenPromise = listen<[string, string]>(
-      "terminal-output",
-      (e) => {
+        "terminal-output",
+        (e) => {
         const [id, output] = e.payload;
-        if (id === terminalId) {
-          term.write(output);
+        if (id === terminalIdRef.current) {
+            term.write(output);
         }
-      }
+        }
     );
 
     return () => {
-      unlistenPromise.then((u) => u());
-      if (terminalId) invoke("terminal_kill", { id: terminalId });
-      term.dispose();
+        // 🚫 DO NOT KILL BACKEND TERMINAL ON REFRESH
+        unlistenPromise.then((u) => u());
+        term.dispose();
     };
-  }, []); // 👈 IMPORTANT: EMPTY DEP ARRAY
+    }, [workspaceId, workspaceRoot]);
+
+
+
 
   /* ───────────── RESIZE HANDLING ───────────── */
   useEffect(() => {
@@ -74,5 +108,12 @@ export default function TerminalPanel() {
     return () => observer.disconnect();
   }, [terminalId]);
 
-  return <div ref={containerRef} className="w-full h-full bg-black" />;
+    return (
+    <div className="flex flex-col w-full h-full bg-black">
+      {/* TERMINAL HEADER (VS CODE / CURSOR STYLE) */}
+
+      {/* TERMINAL CONTENT */}
+      <div ref={containerRef} className="flex-1 overflow-hidden" />
+    </div>
+  );
 }

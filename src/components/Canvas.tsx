@@ -45,6 +45,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   const {
     // 🔥 workspace-aware
     focusedWorkspaceId,
+    repoPath,
     tabsByWorkspace,
     activeTabIndexByWorkspace,
 
@@ -398,7 +399,10 @@ useEffect(() => {
                   style={{ height: terminalHeight }}
                   className="overflow-hidden"
                 >
-                  <TerminalPanel />
+                  <TerminalPanel
+                    workspaceId={focusedWorkspaceId}
+                    workspaceRoot={repoPath}
+                 />
                 </div>
               </>
             )}
