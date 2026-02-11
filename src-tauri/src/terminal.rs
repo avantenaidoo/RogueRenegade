@@ -20,9 +20,24 @@ pub struct Terminal {
     pub writer: Writer,
     pub master: Box<dyn MasterPty + Send>,
 }
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct TerminalMeta {
+    pub id: String,
+    pub shell: String,
+    pub cwd: Option<String>,
+}
+
+
+
 
 static TERMINALS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, Terminal>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+static TERMINAL_META: once_cell::sync::Lazy<
+    Arc<Mutex<HashMap<String, TerminalMeta>>>
+> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
 
 fn system_home_dir() -> Option<String> {
     std::env::var("HOME")
@@ -33,37 +48,28 @@ fn system_home_dir() -> Option<String> {
 /// Spawn the **OS-declared default shell**
 /// - Windows: %ComSpec% (usually cmd.exe)
 /// - macOS/Linux: $SHELL, fallback to /bin/sh
-fn default_shell(cwd: Option<String>) -> CommandBuilder {
-    if cfg!(target_os = "windows") {
-        let shell = std::env::var("ComSpec")
-            .expect("ComSpec is not set — cannot determine default Windows shell");
 
-        let mut cmd = CommandBuilder::new(shell);
 
-        if let Some(dir) = cwd {
-            cmd.cwd(dir);
-        }
-
-        cmd
+fn resolve_shell(shell: Option<String>) -> (String, CommandBuilder) {
+    if let Some(s) = shell {
+        let name = s.clone();
+        (name.clone(), CommandBuilder::new(s))
+    } else if cfg!(target_os = "windows") {
+        let shell = std::env::var("ComSpec").unwrap_or("cmd.exe".into());
+        ("cmd".into(), CommandBuilder::new(shell))
     } else {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        let mut cmd = CommandBuilder::new(shell);
-        cmd.arg("-l");
-
-        if let Some(dir) = cwd {
-            cmd.cwd(dir);
-        }
-
-        cmd
+        let shell = std::env::var("SHELL").unwrap_or("/bin/bash".into());
+        ("bash".into(), CommandBuilder::new(shell))
     }
 }
+
 
 #[tauri::command]
 pub fn terminal_spawn(
     app: AppHandle,
     shell: Option<String>,
     cwd: Option<String>,
-) -> Result<String, String> {
+) -> Result<(String, String), String> {
     let cwd_dbg = cwd.clone();
 
     let pty_system = NativePtySystem::default();
@@ -76,19 +82,12 @@ pub fn terminal_spawn(
         })
         .map_err(|e| e.to_string())?;
 
-    let cmd = match shell {
-        Some(s) => {
-            let mut c = CommandBuilder::new(s);
-            if let Some(dir) = cwd.clone() {
-                c.cwd(dir);
-            }
-            c
+        let (shell_name, mut cmd) = resolve_shell(shell);
+
+        if let Some(dir) = cwd.clone().or_else(system_home_dir) {
+            cmd.cwd(dir);
         }
-        None => {
-            let resolved_cwd = cwd.or_else(system_home_dir);
-            default_shell(resolved_cwd)
-        }
-    };
+
 
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
@@ -105,6 +104,16 @@ pub fn terminal_spawn(
             master,
         },
     );
+
+    TERMINAL_META.lock().unwrap().insert(
+        id.clone(),
+        TerminalMeta {
+            id: id.clone(),
+            shell: shell_name.clone(),
+            cwd,
+        },
+    );
+
 
     let app_clone = app.clone();
     let id_clone = id.clone();
@@ -124,8 +133,21 @@ pub fn terminal_spawn(
 
     println!("[TERMINAL][BE] spawned id={} cwd={:?}", id, cwd_dbg);
 
-    Ok(id)
+    Ok((id, shell_name))
 }
+
+
+#[tauri::command]
+#[allow(dead_code)]
+pub fn terminal_meta(id: String) -> Result<TerminalMeta, String> {
+    TERMINAL_META
+        .lock()
+        .unwrap()
+        .get(&id)
+        .cloned()
+        .ok_or("Terminal meta not found".to_string())
+}
+
 
 #[tauri::command]
 pub fn terminal_write(id: String, data: String) -> Result<(), String> {
@@ -139,6 +161,7 @@ pub fn terminal_write(id: String, data: String) -> Result<(), String> {
 #[tauri::command]
 pub fn terminal_kill(id: String) {
     TERMINALS.lock().unwrap().remove(&id);
+    TERMINAL_META.lock().unwrap().remove(&id);
 }
 
 #[tauri::command]

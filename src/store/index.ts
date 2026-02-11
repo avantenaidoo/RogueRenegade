@@ -58,6 +58,14 @@ export interface RemoteCursor {
   column: number;
 }
 
+export interface TerminalTab {
+  id: string;
+  shell: string;
+  workspaceId: string;
+  active: boolean;
+}
+
+
 interface EditorState {
   /* ───── EDITOR ───── */
   tabs: FileTab[];
@@ -138,7 +146,16 @@ switchWorkspace: (path: string) => Promise<void>;
   removeRecentFile: (path: string) => void;
 
   /* ───── TAB PERSISTENCE ───── */
-  restoreTabs: () => Promise<void>;
+  restoreTabs: () => Promise<void>;/* ───── TERMINAL STATE ───── */
+  terminals: TerminalTab[];
+  activeTerminalId: string | null;
+
+  addTerminal: (t: TerminalTab) => void;
+  setActiveTerminal: (id: string) => void;
+  closeTerminal: (id: string) => void;
+
+
+
 }
 
 const RECENT_FOLDERS_KEY = "rride:recent-folders";
@@ -704,6 +721,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   );
 
 },
+
+terminals: [],
+activeTerminalId: null,
+
+addTerminal: t =>
+  set(state => ({
+    terminals: [...state.terminals, t],
+    activeTerminalId: t.id,
+  })),
+
+setActiveTerminal: id =>
+  set({ activeTerminalId: id }),
+
+closeTerminal: id =>
+  set(state => {
+    const remaining = state.terminals.filter(t => t.id !== id);
+    return {
+      terminals: remaining,
+      activeTerminalId: remaining[0]?.id ?? null,
+    };
+  }),
+
 
 
 }));
