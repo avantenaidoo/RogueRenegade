@@ -222,13 +222,13 @@ export default function Workspace({
         }
       }
 
-      if (session.active_file) {
-        const state = useEditorStore.getState();
-        const index = state.tabs.findIndex(
-          t => t.path === session.active_file
-        );
-        if (index !== -1) setActiveTab(index);
+      // Always select the first tab on refresh
+      const state = useEditorStore.getState();
+      if (state.tabs.length > 0) {
+        console.log("🔥 Refresh: forcing first tab as active:", state.tabs[0].path);
+        setActiveTab(0);
       }
+
 
       console.log("✅ FINAL STATE AFTER RESTORE", useEditorStore.getState());
     })();
