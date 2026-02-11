@@ -11,14 +11,14 @@ export async function onSave(
 }
 
 export async function onCommit(
-  repoPath: string,
-  filePath: string,
+  _repoPath: string,
+  _filePath: string,
   content: string
 ) {
   await runTestsLocally(content);
   console.log("Self-review tests passed, ready for push");
 }
 
-export async function onChange(filePath: string, content: string) {
+export async function onChange(_filePath: string, _content: string) {
   console.log("File changed, can trigger auto optimizations or linting");
 }

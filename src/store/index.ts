@@ -144,8 +144,6 @@ switchWorkspace: (path: string) => Promise<void>;
 const RECENT_FOLDERS_KEY = "rride:recent-folders";
 const RECENT_FILES_KEY = "rride:recent-files";
 
-const OPEN_TABS_KEY = "rride:open-tabs";
-
 // 🔥 WORKSPACE-SCOPED TAB PERSISTENCE
 const OPEN_TABS_BY_WORKSPACE_KEY = "rride:open-tabs-by-workspace";
 const ACTIVE_TAB_BY_WORKSPACE_KEY = "rride:active-tab-by-workspace";

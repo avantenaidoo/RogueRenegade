@@ -32,15 +32,15 @@ export default function Workspace({
     setActiveTab
   } = useEditorStore();
 
-  const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [_theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
+  const [isDarkMode, _setIsDarkMode] = useState(true);
 
   const appWindow = getCurrentWindow();
 
-  const isBlankWindow =
-    new URLSearchParams(window.location.search).get("blank") === "true";
+  const params = new URLSearchParams(window.location.search);
+  const isInitialBlankWindow = params.get("blank") === "true";
 
-  console.log("🪟 WINDOW MODE", window.location.href, isBlankWindow);
+  console.log("🪟 WINDOW MODE", window.location.href, isInitialBlankWindow);
 
 
   let isClosing = false;
@@ -100,12 +100,6 @@ export default function Workspace({
       });
     };
 
-    const saveSessionAndExit = async () => {
-      await saveSessionOnly();
-      await invoke("exit_app");
-    };
-
-
     // MENU EXIT
     const unlistenMenu = listen("menu-exit", async () => {
       console.log("🚪 MENU EXIT");
@@ -153,9 +147,22 @@ export default function Workspace({
   /* ─────────────────────────────
      🔁 RESTORE SESSION + CURSORS
      ───────────────────────────── */
+
+  
   useEffect(() => {
-    if (isBlankWindow) {
-      console.log("🆕 BLANK WINDOW — skipping session restore");
+    if (isInitialBlankWindow) {
+      // 🔥 REMOVE blank=true AFTER FIRST LOAD
+      const url = new URL(window.location.href);
+      url.searchParams.delete("blank");
+      window.history.replaceState({}, "", url.toString());
+
+      console.log("🧹 BLANK FLAG CLEARED — future reloads will restore session");
+    }
+  }, []);
+   
+  useEffect(() => {
+    if (isInitialBlankWindow) {
+      console.log("🆕 INITIAL BLANK WINDOW — skipping FIRST restore only");
       return;
     }
 
@@ -176,6 +183,15 @@ export default function Workspace({
       console.log("📥 SESSION RECEIVED FROM RUST", session);
 
       if (!session) return;
+
+      const hasWorkspace =
+        !!session.last_workspace || session.open_files.length > 0;
+
+      if (isInitialBlankWindow && !hasWorkspace) {
+        console.log("🆕 BLANK WINDOW WITH NO CONTENT — skipping restore");
+        return;
+      }
+
 
       if (session.last_workspace) {
         await invoke("allow_workspace_dir", {

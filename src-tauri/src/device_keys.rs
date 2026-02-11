@@ -10,8 +10,8 @@ const KEY_NAME: &str = "device_private_key";
    BACKEND SIGNING AUTHORITY (DEV)
    ─ pasted ONCE from backend terminal output
 ───────────────────────────────────────────── */
-pub const BACKEND_SIGNING_PUBLIC_KEY_BASE64: &str =
-    "g+v0oghWBprcwrCbO9lYTnAmFY55zCNrxWuPUKuDCQk=";
+// pub const BACKEND_SIGNING_PUBLIC_KEY_BASE64: &str =
+//     "g+v0oghWBprcwrCbO9lYTnAmFY55zCNrxWuPUKuDCQk=";
 
 /// 🔑 LOAD OR CREATE *DEVICE SIGNING KEY* (PRIVATE)
 /// THIS IS WHAT YOU USE FOR STEP 11 SIGNING

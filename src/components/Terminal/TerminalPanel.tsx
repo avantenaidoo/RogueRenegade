@@ -22,10 +22,6 @@ export default function TerminalPanel({
   const fitRef = useRef<FitAddon | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(null);
 
-  const displayPath = workspaceRoot ?? "~";
-
-
-
   /* ───────────── SPAWN TERMINAL PER WORKSPACE ───────────── */
     useEffect(() => {
     if (!containerRef.current) return;
