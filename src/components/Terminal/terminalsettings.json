@@ -1,0 +1,17 @@
+{
+  "windows": {
+    "defaultShell": "powershell.exe",
+    "fontSize": 14,
+    "lineHeight": 1.2
+  },
+  "macos": {
+    "defaultShell": "/bin/bash",
+    "fontSize": 14,
+    "lineHeight": 1.2
+  },
+  "linux": {
+    "defaultShell": "/bin/bash",
+    "fontSize": 14,
+    "lineHeight": 1.2
+  }
+}

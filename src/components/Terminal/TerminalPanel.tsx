@@ -32,11 +32,32 @@ export default function TerminalPanel({
   const fitRef = useRef<FitAddon | null>(null);
   const [terminalId, setTerminalId] = useState<string | null>(null);
 
+  const [isMaximized, setIsMaximized] = useState(false);
+
+
   /* ───────────── SPAWN TERMINAL PER WORKSPACE ───────────── */
     useEffect(() => {
-    if (!containerRef.current) return;
+      if (!workspaceId || !containerRef.current) return;
 
-    const term = new Terminal({ cursorBlink: true });
+        // 🔥 REUSE EXISTING TERMINAL FOR THIS WORKSPACE
+        const existing = terminals.find(t => t.workspaceId === workspaceId);
+        if (existing) {
+            terminalIdRef.current = existing.id;
+            setTerminalId(existing.id);
+            return; // exit early, do not spawn a new terminal
+        }
+
+    const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'block',       // match VS Code cursor
+        fontFamily: 'monospace',    // monospace font like VS Code
+        fontSize: 14,               // adjust font size to match VS Code
+        lineHeight: 1.2,            // adjust line spacing
+        theme: {
+            background: '#1e1e1e',   // VS Code dark background
+            foreground: '#cccccc',   // VS Code text color
+        },
+    });
     const fit = new FitAddon();
 
     term.loadAddon(fit);
@@ -123,7 +144,9 @@ export default function TerminalPanel({
   }, [terminalId]);
 
     return (
-    <div className="flex flex-col w-full h-full bg-default border-t border-default">
+    <div className={`flex flex-col w-full h-full bg-default border-t border-default ${
+        isMaximized ? 'fixed top-0 left-0 w-full h-full z-50' : ''
+    }`}>
 
         {/* HEADER */}
         <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
@@ -142,7 +165,9 @@ export default function TerminalPanel({
 
         {/* RIGHT: ACTIONS */}
         <div className="flex items-center gap-2 text-muted">
-            <button onClick={() => {/* maximize */}}>▢</button>
+            <button onClick={() => setIsMaximized(prev => !prev)}>
+                {isMaximized ? '🗗' : '▢'}
+            </button>
             <button onClick={() => closeTerminal(activeTerminalId!)}>✕</button>
         </div>
         </div>
@@ -153,18 +178,41 @@ export default function TerminalPanel({
         {/* LEFT TERMINAL */}
         <div ref={containerRef} className="flex-1 bg-black" />
 
+
         {/* RIGHT TERMINAL LIST */}
         <div className="w-40 border-l border-default bg-muted text-xs">
-            {terminals.map(t => (
-            <div
-                key={t.id}
-                className={`px-2 py-1 cursor-pointer ${
-                t.id === activeTerminalId ? "bg-default text-default" : ""
-                }`}
-                onClick={() => setActiveTerminal(t.id)}
-            >
-                {t.shell}
-            </div>
+           {terminals.map(t => (
+                <div
+                    key={t.id}
+                    className={`flex justify-between items-center px-3 h-10 cursor-pointer relative group ${
+                        t.id === activeTerminalId ? "bg-default text-default" : ""
+                    }`}
+                >
+                    {/* Tab label */}
+                    <span onClick={() => setActiveTerminal(t.id)}>{t.shell}</span>
+
+                    {/* Trash icon appears on hover */}
+                    <button
+                        className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-lg"
+                        onClick={() => {
+                            // dispose xterm if active
+                            if (t.id === terminalIdRef.current && termRef.current) {
+                                termRef.current.dispose();
+                                termRef.current = null;
+                                fitRef.current = null;
+                                terminalIdRef.current = null;
+                                setTerminalId(null);
+                            }
+
+                            // remove from store
+                            closeTerminal(t.id);
+                        }}
+                        title="Close terminal"
+                    >
+                        🗑️
+                    </button>
+
+                </div>
             ))}
         </div>
         </div>

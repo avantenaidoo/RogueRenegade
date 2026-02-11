@@ -52,12 +52,22 @@ fn system_home_dir() -> Option<String> {
 
 fn resolve_shell(shell: Option<String>) -> (String, CommandBuilder) {
     if let Some(s) = shell {
+        // User-defined shell
         let name = s.clone();
         (name.clone(), CommandBuilder::new(s))
     } else if cfg!(target_os = "windows") {
-        let shell = std::env::var("ComSpec").unwrap_or("cmd.exe".into());
-        ("cmd".into(), CommandBuilder::new(shell))
+        // Windows: try PowerShell, fallback to cmd
+        let powershell_path = std::env::var("WINDIR")
+            .map(|w| format!("{}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", w))
+            .unwrap_or_else(|_| "powershell.exe".into());
+        let shell = if std::path::Path::new(&powershell_path).exists() {
+            powershell_path
+        } else {
+            std::env::var("ComSpec").unwrap_or("cmd.exe".into())
+        };
+        ("powershell".into(), CommandBuilder::new(shell))
     } else {
+        // Linux / macOS
         let shell = std::env::var("SHELL").unwrap_or("/bin/bash".into());
         ("bash".into(), CommandBuilder::new(shell))
     }
