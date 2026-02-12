@@ -2,16 +2,16 @@ export const menus = [
   {
     label: "File",
     items: [
-      { label: "New Text File", action: "newTextFile" },
+      { label: "New Text File", action: "newTextFile", shortcut: "Ctrl+N" },
       { label: "New File…", action: "newFile" },
-      { label: "New Window", action: "newWindow" },
+      { label: "New Window", action: "newWindow", shortcut: "Ctrl+Shift+N" },
       { type: "separator" },
-      { label: "Open File…", action: "openFile" },
-      { label: "Open Folder…", action: "openFolder" },
+      { label: "Open File…", action: "openFile", shortcut: "Ctrl+O" },
+      { label: "Open Folder…", action: "openFolder", shortcut: "Ctrl+K Ctrl+O" },
       { label: "Open Recent", submenu: true },
       { type: "separator" },
-      { label: "Save", action: "save" },
-      { label: "Save As…", action: "saveAs" },
+      { label: "Save", action: "save", shortcut: "Ctrl+S" },
+      { label: "Save As…", action: "saveAs", shortcut: "Ctrl+Shift+S" },
       { type: "separator" },
       { label: "Exit", action: "exit" }
     ]
@@ -19,12 +19,13 @@ export const menus = [
   {
     label: "Edit",
     items: [
-      { label: "Undo", action: "undo" },
-      { label: "Redo", action: "redo" },
+      { label: "Undo", action: "undo", shortcut: "Ctrl+Z"  },
+      { label: "Redo", action: "redo", shortcut: "Ctrl+Y" },
       { type: "separator" },
-      { label: "Cut", action: "cut" },
-      { label: "Copy", action: "copy" },
-      { label: "Paste", action: "paste" }
+      { label: "Cut", action: "cut", shortcut: "Ctrl+X" },
+      { label: "Copy", action: "copy", shortcut: "Ctrl+C" },
+      { label: "Paste", action: "paste", shortcut: "Ctrl+V" },
+      { label: "Select All", action: "selectAll", shortcut: "Ctrl+A" },
     ]
   },
   { label: "Selection", items: [] },
@@ -34,12 +35,12 @@ export const menus = [
   {
   label: "Terminal",
   items: [
-    { label: "New Terminal", action: "newTerminal" },
-    { label: "Split Terminal", action: "splitTerminal" },
-    { label: "New Terminal Window", action: "newTerminalWindow" },
+    { label: "New Terminal", action: "newTerminal", shortcut: "Ctrl+Shift+`"},
+    { label: "Split Terminal", action: "splitTerminal", shortcut: "Ctrl+Shift+5" },
+    { label: "New Terminal Window", action: "newTerminalWindow", shortcut: "Ctrl+Shift+Alt+`" },
     { type: "separator" },
     { label: "Run Task…", action: "runTask" },
-    { label: "Run Build Task…", action: "runBuildTask" },
+    { label: "Run Build Task…", action: "runBuildTask", shortcut: "Ctrl+Shift+Alt+B"  },
     { label: "Run Active File", action: "runActiveFile" },
     { label: "Run Selected Text", action: "runSelectedText" },
     { type: "separator" },

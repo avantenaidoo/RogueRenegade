@@ -37,7 +37,7 @@ export function MenuItem({ item, closeMenu }: any) {
 
   return (
     <div
-      className="relative px-3 py-1 flex justify-between hover:bg-neutral-500 cursor-pointer"
+      className="relative px-3 py-1 flex justify-between items-center hover:bg-neutral-500 cursor-pointer whitespace-nowrap"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
       onClick={(e) => {
@@ -67,7 +67,11 @@ export function MenuItem({ item, closeMenu }: any) {
         }
       }}
     >
-      <span>{item.label}</span>
+      <span className="truncate">{item.label}</span>
+      {item.shortcut && (
+        <span className="ml-4 text-muted text-xs">{item.shortcut}</span>
+      )}
+
       {item.submenu && <span>▶</span>}
 
       {item.submenu && open && (
