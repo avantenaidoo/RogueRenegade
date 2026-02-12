@@ -31,6 +31,25 @@ export const menus = [
   { label: "View", items: [] },
   { label: "Go", items: [] },
   { label: "Run", items: [] },
-  { label: "Terminal", items: [] },
+  {
+  label: "Terminal",
+  items: [
+    { label: "New Terminal", action: "newTerminal" },
+    { label: "Split Terminal", action: "splitTerminal" },
+    { label: "New Terminal Window", action: "newTerminalWindow" },
+    { type: "separator" },
+    { label: "Run Task…", action: "runTask" },
+    { label: "Run Build Task…", action: "runBuildTask" },
+    { label: "Run Active File", action: "runActiveFile" },
+    { label: "Run Selected Text", action: "runSelectedText" },
+    { type: "separator" },
+    { label: "Show Running Tasks…", action: "showRunningTasks" },
+    { label: "Restart Running Task…", action: "restartRunningTask" },
+    { label: "Terminate Task…", action: "terminateTask" },
+    { type: "separator" },
+    { label: "Configure Tasks…", action: "configureTasks" },
+    { label: "Configure Default Build Task…", action: "configureDefaultBuildTask" },
+  ]
+},
   { label: "Help", items: [] }
 ];

@@ -31,7 +31,9 @@ export function MenuBar() {
           {menu.label}
 
           {openMenu === menu.label && (
-            <div className="absolute top-full left-0 bg-default border-zinc-700 min-w-55 z-50">
+            <div className={`absolute top-full left-0 bg-default border-zinc-700 z-50 ${
+              menu.label === "Terminal" ? "min-w-80" : "min-w-55"
+            }`} >
               {menu.items.map((item, i) => (
                 <MenuItem
                   key={i}
