@@ -20,6 +20,7 @@ export default function TerminalPanel({
     addTerminal,
     setActiveTerminal,
     closeTerminal,
+    toggleTerminalPanel,
   } = useEditorStore(); // ✅ hook call at top-level
 
   // REMOVE: prevWorkspaceIdRef - no longer needed, as we handle reuse properly without it
@@ -195,7 +196,12 @@ export default function TerminalPanel({
             <button onClick={() => setIsMaximized(prev => !prev)}>
                 {isMaximized ? '🗗' : '▢'}
             </button>
-            <button onClick={() => closeTerminal(activeTerminalId!)}>✕</button>
+            <button 
+                onClick={toggleTerminalPanel}
+                title="Toggle Terminal Panel"
+            >
+                ✕
+            </button>
         </div>
         </div>
 
