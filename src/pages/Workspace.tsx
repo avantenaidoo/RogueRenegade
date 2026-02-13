@@ -98,6 +98,7 @@ export default function Workspace({
         activeFile: activeTab?.path ?? null,
         cursors
       });
+      useEditorStore.getState().saveTerminals();
     };
 
     // MENU EXIT
@@ -122,6 +123,8 @@ export default function Workspace({
         console.log("💾 CLOSE: saving session");
         await saveSessionOnly();
 
+        useEditorStore.getState().saveTerminals();
+
         console.log("🚪 CLOSE: closing window for real");
         await appWindow.close();
       }
@@ -131,6 +134,7 @@ export default function Workspace({
     const handleBeforeUnload = () => {
       console.log("🔄 RELOAD — saving session");
       saveSessionOnly();
+      useEditorStore.getState().saveTerminals();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);

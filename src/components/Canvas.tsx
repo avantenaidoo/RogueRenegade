@@ -106,6 +106,22 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const activeTab = workspaceTabs[workspaceActiveIndex];
 
+  // 1. Restore terminals when app loads (right after loadWorkspaces)
+  useEffect(() => {
+    useEditorStore.getState().loadWorkspaces();
+    useEditorStore.getState().restoreTerminals();  // ← ADD THIS LINE
+  }, []);
+
+  // Auto-save terminals on change
+  useEffect(() => {
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      const terminals = state.terminals;
+      sessionStorage.setItem("rride:terminals", JSON.stringify(terminals));
+      console.log("[AUTO-SAVE] Terminals saved:", terminals.length);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   /* ───────────── THEME ───────────── */
   useEffect(() => {

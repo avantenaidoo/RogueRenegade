@@ -158,6 +158,9 @@ interface EditorState {
   setBottomTab: (tab: "git" | "terminal") => void;
   toggleTerminalPanel: () => void;
 
+  saveTerminals: () => void;
+  restoreTerminals: () => void;
+
 }
 
 const RECENT_FOLDERS_KEY = "rride:recent-folders";
@@ -170,6 +173,8 @@ const ACTIVE_TAB_BY_WORKSPACE_KEY = "rride:active-tab-by-workspace";
 
 /* 🔥 cursor persistence */
 const CURSOR_MAP_KEY = "rride:cursor-map";
+
+const TERMINALS_KEY = "rride:terminals";
 
 const normalize = (s: string) => s.replace(/\r\n/g, "\n");
 
@@ -753,6 +758,29 @@ closeTerminal: id =>
     set((state) => ({
       bottomTab: state.bottomTab === "terminal" ? "git" : "terminal",
     })),
+
+    saveTerminals: () => {
+      const terminals = get().terminals;
+      sessionStorage.setItem(TERMINALS_KEY, JSON.stringify(terminals));
+      console.log("[STORE] Saved", terminals.length, "terminals to sessionStorage");
+    },
+
+    restoreTerminals: () => {
+      const saved = sessionStorage.getItem(TERMINALS_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as TerminalTab[];
+          set({ 
+            terminals: parsed,
+            activeTerminalId: parsed.length > 0 ? (parsed.find(t => t.active)?.id ?? parsed[0].id) : null
+          });
+          console.log("[STORE] Restored", parsed.length, "terminals from sessionStorage");
+        } catch (err) {
+          console.error("[STORE] Failed to restore terminals:", err);
+          sessionStorage.removeItem(TERMINALS_KEY);
+        }
+      }
+    },
 
 
 
