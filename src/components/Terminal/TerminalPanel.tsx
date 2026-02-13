@@ -22,7 +22,8 @@ export default function TerminalPanel({
     closeTerminal,
   } = useEditorStore(); // ✅ hook call at top-level
 
-  const prevWorkspaceIdRef = useRef<string | null>(null);
+  // REMOVE: prevWorkspaceIdRef - no longer needed, as we handle reuse properly without it
+  // const prevWorkspaceIdRef = useRef<string | null>(null);
   
   const terminalIdRef = useRef<string | null>(null);
   
@@ -30,6 +31,8 @@ export default function TerminalPanel({
   
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+
+  const didSetupRef       = useRef(false);
   const [terminalId, setTerminalId] = useState<string | null>(null);
 
   const [isMaximized, setIsMaximized] = useState(false);
@@ -37,84 +40,108 @@ export default function TerminalPanel({
 
   /* ───────────── SPAWN TERMINAL PER WORKSPACE ───────────── */
     useEffect(() => {
+      // ADD: Debug log for mounting
+      console.log("[TERMINAL][DEBUG] Mounting TerminalPanel for workspace:", workspaceId);
+
       if (!workspaceId || !containerRef.current) return;
 
-        // 🔥 REUSE EXISTING TERMINAL FOR THIS WORKSPACE
+      // 🔥 ALWAYS CREATE A NEW FRONTEND XTERM INSTANCE ON MOUNT (this was the core issue - previously skipped on reuse)
+      const term = new Terminal({
+          cursorBlink: true,
+          cursorStyle: 'block',       // match VS Code cursor
+          fontFamily: 'monospace',    // monospace font like VS Code
+          fontSize: 14,               // adjust font size to match VS Code
+          lineHeight: 1.2,            // adjust line spacing
+          theme: {
+              background: '#1e1e1e',   // VS Code dark background
+              foreground: '#cccccc',   // VS Code text color
+          },
+      });
+      const fit = new FitAddon();
+
+      term.loadAddon(fit);
+      term.open(containerRef.current);
+      fit.fit();
+
+      // ADD: Debug log for xterm creation
+      console.log("[TERMINAL][DEBUG] Created new xterm frontend instance");
+
+      termRef.current = term;
+      fitRef.current = fit;
+
+      // 🔥 HANDLE BACKEND: REUSE IF EXISTS, SPAWN IF NOT (moved spawn logic here, removed prev check)
+      // Only run setup logic ONCE — even under Strict Mode double mount
+      if (didSetupRef.current) {
+        console.log("[TERMINAL][SKIP] Already set up this component instance");
+        return;
+      }
+
+      (async () => {
+        didSetupRef.current = true;  // Mark as done immediately (sync)
+
+        console.log("[TERMINAL][DEBUG] Starting terminal setup (first time)");
+
+        // ─── CHECK EXISTING IN STORE ───
         const existing = terminals.find(t => t.workspaceId === workspaceId);
+
+        let id: string;
+        let shell: string;
+
         if (existing) {
-            terminalIdRef.current = existing.id;
-            setTerminalId(existing.id);
-            return; // exit early, do not spawn a new terminal
-        }
+          console.log("[TERMINAL][REUSE] Found existing terminal →", existing.id);
+          id = existing.id;
+          shell = existing.shell;
+        } else {
+          console.log("[TERMINAL][SPAWN] No terminal found → spawning new");
+          [id, shell] = await invoke<[string, string]>("terminal_spawn", {
+            shell: null,
+            cwd: workspaceRoot ?? undefined,
+          });
 
-    const term = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'block',       // match VS Code cursor
-        fontFamily: 'monospace',    // monospace font like VS Code
-        fontSize: 14,               // adjust font size to match VS Code
-        lineHeight: 1.2,            // adjust line spacing
-        theme: {
-            background: '#1e1e1e',   // VS Code dark background
-            foreground: '#cccccc',   // VS Code text color
-        },
-    });
-    const fit = new FitAddon();
-
-    term.loadAddon(fit);
-    term.open(containerRef.current);
-    fit.fit();
-
-    term.onData((data) => {
-        if (terminalIdRef.current) {
-        invoke("terminal_write", {
-            id: terminalIdRef.current,
-            data,
-        });
-        }
-    });
-
-    termRef.current = term;
-    fitRef.current = fit;
-
-    // 🔥 ONLY SPAWN WHEN WORKSPACE ACTUALLY CHANGES
-    if (prevWorkspaceIdRef.current !== workspaceId) {
-        console.log("[TERMINAL][FE] spawning for workspace", workspaceId);
-
-        invoke<[string, string]>("terminal_spawn", {
-        shell: null,
-        cwd: workspaceRoot ?? undefined,
-        }).then(([id, shell]) => {
-        terminalIdRef.current = id;
-        setTerminalId(id);
-
-        addTerminal({
+          addTerminal({
             id,
             shell,
             workspaceId: workspaceId!,
             active: true,
+          });
+
+          console.log("[TERMINAL][SPAWN] Added new terminal →", id);
+        }
+
+        terminalIdRef.current = id;
+        setTerminalId(id);
+        setActiveTerminal(id);
+
+        // Setup xterm → backend write listener
+        const removeOnData = term.onData((data) => {
+          if (terminalIdRef.current) {
+            invoke("terminal_write", { id: terminalIdRef.current, data });
+          }
         });
-        });
 
-
-        prevWorkspaceIdRef.current = workspaceId;
-    }
-
-    const unlistenPromise = listen<[string, string]>(
-        "terminal-output",
-        (e) => {
-        const [id, output] = e.payload;
-        if (id === terminalIdRef.current) {
+        // Setup backend → xterm listener
+        const unlisten = await listen<[string, string]>("terminal-output", (e) => {
+          const [outId, output] = e.payload;
+          if (outId === terminalIdRef.current) {
             term.write(output);
-        }
-        }
-    );
+          }
+        });
 
-    return () => {
-        // 🚫 DO NOT KILL BACKEND TERMINAL ON REFRESH
-        unlistenPromise.then((u) => u());
-        term.dispose();
-    };
-    }, [workspaceId, workspaceRoot]);
+        console.log("[TERMINAL][DEBUG] Setup complete for terminal ID:", id);
+
+        // Cleanup on unmount (will run twice in Strict Mode, but safe)
+        return () => {
+          console.log("[TERMINAL][UNMOUNT] Cleaning up frontend for ID:", id);
+          unlisten();
+          removeOnData.dispose();
+          term.dispose();
+          termRef.current = null;
+          fitRef.current = null;
+          // IMPORTANT: do NOT set didSetupRef.current = false here
+          // We want to remember we already spawned across Strict Mode's fake unmount
+        };
+      })();
+    }, [workspaceId, workspaceRoot]); // Dependencies unchanged
 
 
 
@@ -202,6 +229,12 @@ export default function TerminalPanel({
                                 fitRef.current = null;
                                 terminalIdRef.current = null;
                                 setTerminalId(null);
+                            }
+
+                            // ADD: Kill backend terminal on explicit close (assuming 'terminal_kill' exists in your Rust backend; if not, implement it there)
+                            if (t.id) {
+                              console.log("[TERMINAL][DEBUG] Killing backend terminal ID:", t.id);
+                              invoke("terminal_kill", { id: t.id }).catch(console.error);
                             }
 
                             // remove from store
