@@ -193,6 +193,53 @@ export default function TerminalPanel({
 
         {/* RIGHT: ACTIONS */}
         <div className="flex items-center gap-2 text-muted">
+            {/* NEW + BUTTON */}
+             <button
+                onClick={() => {
+                    // Spawn new terminal for current workspace
+                    (async () => {
+                        const wsId = workspaceId;
+                        if (!wsId || !workspaceRoot) return;
+
+                        console.log("[TERMINAL][NEW] Creating additional terminal");
+
+                        const [id, shell] = await invoke<[string, string]>("terminal_spawn", {
+                            shell: null,
+                            cwd: workspaceRoot ?? undefined,
+                        });
+
+                        useEditorStore.getState().addTerminal({
+                            id,
+                            shell,
+                            workspaceId: wsId,
+                            active: true,
+                        });
+
+                        // Optional: switch to the new one
+                        useEditorStore.getState().setActiveTerminal(id);
+                    })();
+                }}
+                title="New Terminal"
+                className="text-xl hover:text-default leading-none" 
+                disabled={!workspaceId || !workspaceRoot}
+            >
+                <svg 
+                    width="20" 
+                    height="20" 
+                    viewBox="0 0 20 20" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="text-default"
+                >
+                    <path 
+                        d="M10 4V16M4 10H16" 
+                        stroke="currentColor" 
+                        strokeWidth="1" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            </button>
             <button onClick={() => setIsMaximized(prev => !prev)}>
                 {isMaximized ? '🗗' : '▢'}
             </button>
