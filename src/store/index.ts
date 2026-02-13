@@ -71,10 +71,10 @@ interface EditorState {
   tabs: FileTab[];
   activeTabIndex: number;
 
-// 🔥 WORKSPACE-SCOPED TABS
-tabsByWorkspace: Record<string, FileTab[]>;
-activeTabIndexByWorkspace: Record<string, number>;
-switchWorkspace: (path: string) => Promise<void>;
+  // 🔥 WORKSPACE-SCOPED TABS
+  tabsByWorkspace: Record<string, FileTab[]>;
+  activeTabIndexByWorkspace: Record<string, number>;
+  switchWorkspace: (path: string) => Promise<void>;
   addTab: (path: string, content: string) => void;
   updateTab: (index: number, updates: Partial<FileTab>) => void;
   setActiveTab: (index: number) => void;
@@ -154,7 +154,9 @@ switchWorkspace: (path: string) => Promise<void>;
   setActiveTerminal: (id: string) => void;
   closeTerminal: (id: string) => void;
 
-
+  bottomTab: "git" | "terminal";
+  setBottomTab: (tab: "git" | "terminal") => void;
+  toggleTerminalPanel: () => void;
 
 }
 
@@ -742,6 +744,15 @@ closeTerminal: id =>
       activeTerminalId: remaining[0]?.id ?? null,
     };
   }),
+
+  bottomTab: "git",
+
+  setBottomTab: (tab) => set({ bottomTab: tab }),
+
+  toggleTerminalPanel: () =>
+    set((state) => ({
+      bottomTab: state.bottomTab === "terminal" ? "git" : "terminal",
+    })),
 
 
 

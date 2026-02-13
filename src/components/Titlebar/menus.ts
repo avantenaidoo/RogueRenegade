@@ -29,7 +29,9 @@ export const menus = [
     ]
   },
   { label: "Selection", items: [] },
-  { label: "View", items: [] },
+  { label: "View", items: [
+    { label: "Terminal", action: "terminal", shortcut: "Ctrl+`"},
+  ] },
   { label: "Go", items: [] },
   { label: "Run", items: [] },
   {

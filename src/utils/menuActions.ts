@@ -185,6 +185,10 @@ export async function runMenuAction(action?: string) {
       break;
     }
 
+        case "terminal":
+      store.toggleTerminalPanel();
+      break;
+
     default:
       console.warn("Unhandled menu action:", action);
   }

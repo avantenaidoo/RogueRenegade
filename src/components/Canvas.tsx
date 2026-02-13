@@ -54,6 +54,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     updateTab,
     markClean,
     showCollaboration,
+    bottomTab, 
+    setBottomTab, 
+    toggleTerminalPanel,
   } = useEditorStore();
 
 
@@ -84,9 +87,6 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   /* 🔥🔥🔥 CHAT MAXIMIZE STATE (THIS WAS MISSING) 🔥🔥🔥 */
   const [isChatMaximized, setIsChatMaximized] = useState(false);
-
-  const [bottomTab, setBottomTab] = useState<"git" | "terminal">("git");
-
   const [terminalHeight, setTerminalHeight] = useState(260);
   const terminalDragging = React.useRef(false);
 
@@ -133,16 +133,16 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   /* ───────────── TOGGLE TERMINAL (CTRL+`) ───────────── */
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "`") {
         e.preventDefault();
-        setBottomTab((t) => (t === "terminal" ? "git" : "terminal"));
+        toggleTerminalPanel();          // ← this is the one from the store!
       }
-    }
+    };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleTerminalPanel]);           // important: depend on the stable function
 
   /* ───────────── RESIZE HANDLING ───────────── */
   useEffect(() => {
