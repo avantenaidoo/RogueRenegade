@@ -194,34 +194,38 @@ export default function TerminalPanel({
         {/* RIGHT: ACTIONS */}
         <div className="flex items-center gap-2 text-muted">
             {/* NEW + BUTTON */}
-             <button
+            <button
                 onClick={() => {
-                    // Spawn new terminal for current workspace
                     (async () => {
-                        const wsId = workspaceId;
-                        if (!wsId || !workspaceRoot) return;
+                        // No early return — spawn even if no workspace
+                        const currentRoot = workspaceRoot ?? undefined;  // fallback to backend default cwd
 
-                        console.log("[TERMINAL][NEW] Creating additional terminal");
+                        console.log("[TERMINAL][NEW] Creating terminal (workspace may be blank)");
 
                         const [id, shell] = await invoke<[string, string]>("terminal_spawn", {
                             shell: null,
-                            cwd: workspaceRoot ?? undefined,
+                            cwd: currentRoot,  // undefined = backend decides (usually home dir or /)
                         });
+
+                        // Use a fallback workspace ID if null (generate temp one or use null)
+                        const fallbackWsId = workspaceId ?? `blank-${Date.now()}`;
 
                         useEditorStore.getState().addTerminal({
                             id,
                             shell,
-                            workspaceId: wsId,
+                            workspaceId: fallbackWsId,  // store it under a temp ID
                             active: true,
                         });
 
-                        // Optional: switch to the new one
                         useEditorStore.getState().setActiveTerminal(id);
+
+                        // Optional: If blank, maybe auto-set a default workspace name or something later
+                        console.log("[TERMINAL][NEW] Added terminal ID:", id, "in workspace:", fallbackWsId);
                     })();
                 }}
                 title="New Terminal"
-                className="text-xl hover:text-default leading-none" 
-                disabled={!workspaceId || !workspaceRoot}
+                className="p-1 hover:text-default transition-colors flex items-center justify-center"
+                // NO disabled — always clickable
             >
                 <svg 
                     width="20" 
@@ -229,12 +233,12 @@ export default function TerminalPanel({
                     viewBox="0 0 20 20" 
                     fill="none" 
                     xmlns="http://www.w3.org/2000/svg"
-                    className="text-default"
+                    className="text-current"
                 >
                     <path 
                         d="M10 4V16M4 10H16" 
                         stroke="currentColor" 
-                        strokeWidth="1" 
+                        strokeWidth="3" 
                         strokeLinecap="round" 
                         strokeLinejoin="round"
                     />
