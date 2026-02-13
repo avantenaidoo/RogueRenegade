@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { useEditorStore } from "@/store";
 
 let socket: Socket;
 
@@ -12,6 +13,32 @@ export function initCollaboration(username: string, roomId: string) {
   socket = io("http://localhost:3001");
 
   socket.emit("joinRoom", { username, roomId });
+
+  socket.on("connect", () => {
+    const current = useEditorStore.getState().currentUser;
+    console.log("[SOCKET] Connected — current user before update:", current);
+    
+    if (current) {
+      const updated = { ...current, isOnline: true };
+      console.log("[SOCKET] Setting isOnline true:", updated);
+      useEditorStore.getState().setCurrentUser(updated);
+    } else {
+      console.warn("[SOCKET] No currentUser set yet — skipping isOnline update");
+    }
+  });
+
+  socket.on("disconnect", () => {
+    const current = useEditorStore.getState().currentUser;
+    console.log("[SOCKET] Disconnected — current user before update:", current);
+    
+    if (current) {
+      const updated = { ...current, isOnline: false };
+      console.log("[SOCKET] Setting isOnline false:", updated);
+      useEditorStore.getState().setCurrentUser(updated);
+    } else {
+      console.warn("[SOCKET] No currentUser set — skipping isOnline update");
+    }
+  });
 }
 
 /* ========================

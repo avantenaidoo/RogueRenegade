@@ -161,6 +161,11 @@ interface EditorState {
   saveTerminals: () => void;
   restoreTerminals: () => void;
 
+  currentUser: { username: string; email: string; isOnline: boolean } | null;
+  setCurrentUser: (
+    user: { username: string; email: string; isOnline?: boolean } | null |
+    ((prev: { username: string; email: string; isOnline: boolean } | null) => { username: string; email: string; isOnline?: boolean } | null)
+  ) => void;
 }
 
 const RECENT_FOLDERS_KEY = "rride:recent-folders";
@@ -782,6 +787,13 @@ closeTerminal: id =>
       }
     },
 
+    currentUser: null,
+    setCurrentUser: (updater) => set(state => {
+      const newUser = typeof updater === "function" 
+        ? updater(state.currentUser) 
+        : updater;
+      return { currentUser: newUser ? { ...newUser, isOnline: newUser.isOnline ?? true } : null };
+    }),
 
 
 }));

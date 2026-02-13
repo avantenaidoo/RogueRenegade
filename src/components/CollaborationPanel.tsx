@@ -127,42 +127,42 @@ export default function CollaborationPanel({
   /* ───────────────────────────────────────────── */
 
   const typingList = typingUsers[activeChatId ?? ""] ?? [];
+  const currentUser = useEditorStore(state => state.currentUser);
+  console.log("[CHAT PANEL] Current user from store:", currentUser);
 
   return (
     <div className="h-full w-full flex flex-col bg-muted text-default">
       {/* HEADER */}
       <div className="h-9 flex items-center justify-between px-2 border-b border-default text-xs select-none">
-        <span className="font-semibold uppercase tracking-wide">Chat</span>
+        {/* Left: User info + badge */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Online/offline badge */}
+            <div className={`w-2.5 h-2.5 rounded-full ${
+              currentUser?.isOnline ? "bg-green-500 shadow-sm shadow-green-500/50" : "bg-gray-500"
+            }`} />
+            
+            {/* Username or email */}
+            <span className="font-medium">
+              {currentUser?.username || currentUser?.email || "local-user"}
+              {/* Debug fallback */}
+              {currentUser ? "" : " (store is null)"}
+            </span>
+          </div>
+        </div>
 
+        {/* Right: Buttons */}
         <div className="flex items-center gap-1">
-          <button
-            title="New Chat"
-            className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
-            onClick={addChatTab}
-          >
+          <button title="New Chat" className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded" onClick={addChatTab}>
             +
           </button>
-
-          <button
-            title="Chat Settings"
-            className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
-          >
+          <button title="Chat Settings" className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded">
             ⚙
           </button>
-
-          <button
-            title="Maximize Chat"
-            className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
-            onClick={onToggleMaximize}
-          >
+          <button title="Maximize Chat" className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded" onClick={onToggleMaximize}>
             ⤢
           </button>
-
-          <button
-            title="Close Chat"
-            className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded"
-            onClick={toggleCollaboration}
-          >
+          <button title="Close Chat" className="w-6 h-6 flex items-center justify-center hover:bg-neutral-500 rounded" onClick={toggleCollaboration}>
             ✕
           </button>
         </div>

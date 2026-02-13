@@ -4,10 +4,12 @@ import Workspace from "@/pages/Workspace";
 import LoginPanel from "@/auth/LoginPanel";
 import AccountSwitcher from "@/auth/AccountSwitcher";
 import SignupPanel from "./SignupPanel";
+import { useEditorStore } from "@/store";
 
 type StoredAccount = {
   account_id: string;
   username: string;
+  email?: string;
   status: "Pending" | "Approved" | "Rejected" | "Suspended";
   last_used: number;
 };
@@ -95,21 +97,24 @@ export default function AuthGate() {
     try {
     const authState = await invoke<AuthStateFile>("auth_get_state");
     setState(authState);
-    setLoading(false);
-    } catch (err: any) {
-    const msg = String(err);
 
-    if (msg.includes("DEVICE_BANNED") || msg.includes("423")) {
-        // 🔥 Persist ban locally
-        await invoke("blocked_add_device");
+      // NEW: Load currentUser from active account
+      const active = selectActiveAccount(authState);
+      if (active) {
+        console.log("[AUTH GATE] Loading currentUser from active account:", active);
+        useEditorStore.getState().setCurrentUser({
+          username: active.username || "unknown-user",
+          email: active.email || "unknown@email.com",
+          isOnline: true, // assume online on load
+        });
+      }
 
-        // 🔁 Force re-evaluation → AuthGate will hard-lock
-        window.location.reload();
-        return;
-    }
-
-    throw err; // other errors still bubble
-}
+      setLoading(false);
+      } catch (err: any) {
+        console.error("[AUTH GATE] Bootstrap error:", err);
+        setLoading(false);
+        // Optionally show error UI here
+      }
     })();
     }, []);
 

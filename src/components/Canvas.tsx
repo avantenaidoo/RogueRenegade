@@ -266,7 +266,7 @@ useEffect(() => {
   };
 }, [isExplorerResizing, isChatMaximized]);
 
-
+const currentUser = useEditorStore(state => state.currentUser);
 
 
   return (
@@ -378,13 +378,11 @@ useEffect(() => {
 
             {/* PANEL CONTENT */}
             <div className="flex-1 overflow-hidden">
-              <CollaborationPanel
-                username="local-user"
-                roomId="workspace"
-                onToggleMaximize={() =>
-                  setIsChatMaximized(v => !v)
-                }
-              />
+            <CollaborationPanel
+              username={currentUser?.username || "local-user"}
+              roomId="workspace"
+              onToggleMaximize={() => setIsChatMaximized(v => !v)}
+            />
             </div>
           </div>
         )}

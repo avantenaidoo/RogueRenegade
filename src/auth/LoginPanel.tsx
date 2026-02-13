@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useEditorStore } from "@/store";
 
 type Props = {
   onSuccess: () => void;
@@ -30,15 +31,39 @@ export default function LoginPanel({
         passwordHash,
       });
 
+      console.log("[LOGIN] Raw response from Rust:", res);
+
       if (!res.success) {
         setError(res.message);
         return;
       }
 
-      // ✅ Rust wrote auth_state.json
-      // ✅ AuthGate will re-check state
+      // Fetch full auth state
+      const authState = await invoke<any>("auth_get_state");
+      console.log("[LOGIN] Full auth_state.json:", authState);
+
+      const activeAccount = authState.accounts.find(
+        (a: any) => a.account_id === authState.active_account_id
+      );
+
+      console.log("[LOGIN] Active account found:", activeAccount);
+
+      if (activeAccount) {
+        const userData = {
+          username: activeAccount.username || identifier.split('@')[0] || "unknown-user",
+          email: activeAccount.email || identifier || "unknown@email.com",
+          isOnline: true,  // force green on login success
+        };
+        console.log("[LOGIN] Setting currentUser to:", userData);
+
+        useEditorStore.getState().setCurrentUser(userData);
+      } else {
+        console.warn("[LOGIN] No active account found in auth_state");
+      }
+
       onSuccess();
     } catch (e: any) {
+      console.error("[LOGIN] Error during login:", e);
       setError(e.toString());
     } finally {
       setLoading(false);
