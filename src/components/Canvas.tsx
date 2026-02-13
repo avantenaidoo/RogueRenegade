@@ -60,7 +60,6 @@ export const Canvas: React.FC<CanvasProps> = ({
   } = useEditorStore();
 
 
-  const [theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
   const [showDashboard, setShowDashboard] = useState(false);
 
     /* ───────────── BACKEND CONNECTIVITY TEST ───────────── */
@@ -123,9 +122,35 @@ export const Canvas: React.FC<CanvasProps> = ({
     return () => unsubscribe();
   }, []);
 
+  // Theme: system default + user persistence (whole app)
+  const THEME_KEY = "rride:theme-preference";
+
+  // Get system preference
+  const getSystemTheme = (): "vs-dark" | "vs-light" =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "vs-dark" : "vs-light";
+
+  // Load saved or system theme **synchronously** on mount
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const initialTheme: "vs-dark" | "vs-light" = 
+    savedTheme === "vs-dark" || savedTheme === "vs-light" 
+      ? savedTheme 
+      : getSystemTheme();
+
+  // Apply .dark class **immediately** (before render)
+  document.documentElement.classList.toggle("dark", initialTheme === "vs-dark");
+
+  const [theme, setTheme] = useState<"vs-dark" | "vs-light">(initialTheme);
+
   /* ───────────── THEME ───────────── */
+  // Keep in sync (though initial is already set)
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "vs-dark");
+    console.log("[THEME] Updated:", theme, "→ dark class:", document.documentElement.classList.contains("dark"));
+  }, [theme]);
+
+  // Save on change
+  useEffect(() => {
+    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
   /* ───────────── SAVE (CTRL+S) ───────────── */
