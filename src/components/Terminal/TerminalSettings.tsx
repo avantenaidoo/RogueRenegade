@@ -77,10 +77,9 @@ export default function TerminalSettings({ onSpawn }: TerminalSettingsProps) {
         ...floatingStyles,
         zIndex: 99999,           // very high so it punches through everything
         minWidth: "192px",       // w-48 = 12rem = 192px
-        backgroundColor: "#1e1e1e", // force dark bg in case tailwind fails
       }}
       className={`
-        bg-muted border border-default shadow-2xl rounded-md 
+        bg-default border border-default shadow-2xl rounded-md 
         overflow-hidden origin-${isDropUp ? "bottom" : "top"}
         transition-opacity duration-100
       `}
@@ -92,7 +91,7 @@ export default function TerminalSettings({ onSpawn }: TerminalSettingsProps) {
             onSpawn(opt.value);
             setOpen(false);
           }}
-          className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#2a2d2e] hover:text-white transition-colors"
+          className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-500  hover:text-white transition-colors"
         >
           {opt.label}
         </button>
