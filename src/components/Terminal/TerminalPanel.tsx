@@ -7,8 +7,6 @@ import "xterm/css/xterm.css";
 import { useEditorStore } from "../../store";
 import TerminalSettings from "./TerminalSettings";
 
-
-
 export default function TerminalPanel({
   workspaceId,
   workspaceRoot,
@@ -23,157 +21,174 @@ export default function TerminalPanel({
     setActiveTerminal,
     closeTerminal,
     toggleTerminalPanel,
-  } = useEditorStore(); // ✅ hook call at top-level
+  } = useEditorStore();
 
-  // REMOVE: prevWorkspaceIdRef - no longer needed, as we handle reuse properly without it
-  // const prevWorkspaceIdRef = useRef<string | null>(null);
-  
   const terminalIdRef = useRef<string | null>(null);
-  
+  const activeIdRef = useRef<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
-  
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
 
-  const didSetupRef       = useRef(false);
-  const [terminalId, setTerminalId] = useState<string | null>(null);
-
+  const didSetupRef = useRef(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
+  const forceUpdateRef = useRef(0);
 
-  /* ───────────── SPAWN TERMINAL PER WORKSPACE ───────────── */
-    useEffect(() => {
-      // ADD: Debug log for mounting
-      console.log("[TERMINAL][DEBUG] Mounting TerminalPanel for workspace:", workspaceId);
+  // Force-sync ref on ANY Zustand active change
+  useEffect(() => {
+    const unsubscribe = useEditorStore.subscribe((state) => {
+      if (state.activeTerminalId !== activeIdRef.current) {
+        console.log(
+          "[ZUSTAND SUB DEBUG] Active changed via subscribe to:", state.activeTerminalId
+        );
+        activeIdRef.current = state.activeTerminalId;
+      }
+    });
 
-      if (!workspaceId || !containerRef.current) return;
+    return unsubscribe;
+  }, []);
 
-      // 🔥 ALWAYS CREATE A NEW FRONTEND XTERM INSTANCE ON MOUNT (this was the core issue - previously skipped on reuse)
+  /* ───────────── SPAWN & SETUP ───────────── */
+  useEffect(() => {
+    console.log("[TERMINAL][DEBUG] Mounting for workspace:", workspaceId);
+
+    if (!workspaceId || !containerRef.current) return;
+
+    if (!termRef.current) {
       const term = new Terminal({
-          cursorBlink: true,
-          cursorStyle: 'block',       // match VS Code cursor
-          fontFamily: 'monospace',    // monospace font like VS Code
-          fontSize: 14,               // adjust font size to match VS Code
-          lineHeight: 1.2,            // adjust line spacing
-          theme: {
-              background: '#1e1e1e',   // VS Code dark background
-              foreground: '#cccccc',   // VS Code text color
-          },
+        cursorBlink: true,
+        cursorStyle: 'block',
+        fontFamily: 'monospace',
+        fontSize: 14,
+        lineHeight: 1.2,
+        theme: {
+          background: '#1e1e1e',
+          foreground: '#cccccc',
+        },
       });
       const fit = new FitAddon();
-
       term.loadAddon(fit);
       term.open(containerRef.current);
       fit.fit();
 
-      // ADD: Debug log for xterm creation
-      console.log("[TERMINAL][DEBUG] Created new xterm frontend instance");
+      console.log("[TERMINAL][DEBUG] Created xterm instance");
 
       termRef.current = term;
       fitRef.current = fit;
 
-      // 🔥 HANDLE BACKEND: REUSE IF EXISTS, SPAWN IF NOT (moved spawn logic here, removed prev check)
-      // Only run setup logic ONCE — even under Strict Mode double mount
-      if (didSetupRef.current) {
-        console.log("[TERMINAL][SKIP] Already set up this component instance");
-        return;
-      }
-
-      (async () => {
-        didSetupRef.current = true;  // Mark as done immediately (sync)
-
-        console.log("[TERMINAL][DEBUG] Starting terminal setup (first time)");
-
-        // ─── CHECK EXISTING IN STORE ───
-        const existing = terminals.find(t => t.workspaceId === workspaceId);
-
-        let id: string;
-        let shell: string;
-
-        if (existing) {
-          console.log("[TERMINAL][REUSE] Found existing terminal →", existing.id);
-          id = existing.id;
-          shell = existing.shell;
+      term.onData((data) => {
+        const target = activeIdRef.current || terminalIdRef.current;
+        console.log("[INPUT DEBUG] Typed:", JSON.stringify(data), "→ to:", target);
+        if (target) {
+          invoke("terminal_write", { id: target, data });
         } else {
-          console.log("[TERMINAL][SPAWN] No terminal found → spawning new");
-          [id, shell] = await invoke<[string, string]>("terminal_spawn", {
-            shell: null,
-            cwd: workspaceRoot ?? undefined,
-          });
-
-          addTerminal({
-            id,
-            shell,
-            workspaceId: workspaceId!,
-            active: true,
-          });
-
-          console.log("[TERMINAL][SPAWN] Added new terminal →", id);
+          console.warn("[INPUT DEBUG] NO TARGET - keystroke dropped");
         }
+      });
+    }
 
-        terminalIdRef.current = id;
-        setTerminalId(id);
-        setActiveTerminal(id);
-
-        // Setup xterm → backend write listener
-        const removeOnData = term.onData((data) => {
-          if (terminalIdRef.current) {
-            invoke("terminal_write", { id: terminalIdRef.current, data });
-          }
-        });
-
-        // Setup backend → xterm listener
-        const unlisten = await listen<[string, string]>("terminal-output", (e) => {
-          const [outId, output] = e.payload;
-          if (outId === terminalIdRef.current) {
-            term.write(output);
-          }
-        });
-
-        console.log("[TERMINAL][DEBUG] Setup complete for terminal ID:", id);
-
-        // Cleanup on unmount (will run twice in Strict Mode, but safe)
-        return () => {
-          console.log("[TERMINAL][UNMOUNT] Cleaning up frontend for ID:", id);
-          unlisten();
-          removeOnData.dispose();
-          term.dispose();
-          termRef.current = null;
-          fitRef.current = null;
-          // IMPORTANT: do NOT set didSetupRef.current = false here
-          // We want to remember we already spawned across Strict Mode's fake unmount
-        };
-      })();
-    }, [workspaceId, workspaceRoot]); // Dependencies unchanged
-
-
-
-
-  /* ───────────── RESIZE HANDLING ───────────── */
-  useEffect(() => {
-    if (!terminalId || !termRef.current || !fitRef.current || !containerRef.current) {
+    if (didSetupRef.current) {
+      console.log("[TERMINAL][SKIP] Already setup");
       return;
     }
 
-    const resize = () => {
-      fitRef.current!.fit();
+    didSetupRef.current = true;
 
-      invoke("terminal_resize", {
-        id: terminalId,
-        rows: termRef.current!.rows,
-        cols: termRef.current!.cols,
-      }).catch(console.error);
+    (async () => {
+      console.log("[TERMINAL][DEBUG] First-time setup");
+
+      const existing = terminals.find(t => t.workspaceId === workspaceId);
+
+      let id: string;
+      let shell: string;
+
+      if (existing) {
+        id = existing.id;
+        shell = existing.shell;
+        console.log("[TERMINAL][REUSE] Using:", id);
+      } else {
+        [id, shell] = await invoke<[string, string]>("terminal_spawn", {
+          shell: null,
+          cwd: workspaceRoot ?? undefined,
+        });
+        addTerminal({ id, shell, workspaceId: workspaceId!, active: true });
+        console.log("[TERMINAL][SPAWN] New:", id);
+      }
+
+      terminalIdRef.current = id;
+      activeIdRef.current = id;
+      setActiveTerminal(id);
+
+      console.log("[TERMINAL][DEBUG] IDs synced:", { terminalIdRef: terminalIdRef.current, activeRef: activeIdRef.current });
+
+      const unlisten = await listen<[string, string]>("terminal-output", (e) => {
+        const [outId, output] = e.payload;
+        const current = activeIdRef.current || terminalIdRef.current;
+        console.log("[OUTPUT DEBUG] From:", outId, "active:", current);
+        if (outId === current && termRef.current) {
+          termRef.current.write(output);
+          console.log("[OUTPUT DEBUG] Written");
+        } else {
+          console.log("[OUTPUT DEBUG] Ignored");
+        }
+      });
+
+      return () => {
+        console.log("[TERMINAL][UNMOUNT] Cleanup");
+        unlisten();
+        if (termRef.current) {
+          termRef.current.dispose();
+          termRef.current = null;
+          fitRef.current = null;
+        }
+      };
+    })();
+  }, [workspaceId, workspaceRoot]);
+
+  // Refit & resize on active change
+  useEffect(() => {
+    if (!activeTerminalId || !termRef.current || !fitRef.current) return;
+
+    console.log("[REFIT DEBUG] Active switch to:", activeTerminalId);
+    activeIdRef.current = activeTerminalId;
+
+    fitRef.current.fit();
+    invoke("terminal_resize", {
+      id: activeTerminalId,
+      rows: termRef.current.rows,
+      cols: termRef.current.cols,
+    }).catch(console.error);
+
+    termRef.current.write('\r');
+  }, [activeTerminalId, forceUpdateRef.current]);
+
+  // Container resize observer
+  useEffect(() => {
+    if (!containerRef.current || !fitRef.current) return;
+
+    const resize = () => {
+      console.log("[RESIZE DEBUG] Container resize");
+      fitRef.current!.fit();
+      const target = activeIdRef.current || terminalIdRef.current;
+      if (target && termRef.current) {
+        invoke("terminal_resize", {
+          id: target,
+          rows: termRef.current.rows,
+          cols: termRef.current.cols,
+        }).catch(console.error);
+      }
     };
 
     resize();
-
     const observer = new ResizeObserver(resize);
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [terminalId]);
+  }, []);
 
-    const spawnTerminal = async (shell: string | null) => {
+  const spawnTerminal = async (shell: string | null) => {
+    console.log("[SPAWN DEBUG] Starting spawn with shell:", shell);
     const currentRoot = workspaceRoot ?? undefined;
 
     const [id, resolvedShell] = await invoke<[string, string]>("terminal_spawn", {
@@ -191,95 +206,73 @@ export default function TerminalPanel({
     });
 
     useEditorStore.getState().setActiveTerminal(id);
+    console.log("[SPAWN DEBUG] Spawn complete - set active:", id);
   };
 
-    return (
+  return (
     <div className={`flex flex-col w-full h-full bg-default border-t border-default ${
         isMaximized ? 'fixed top-0 left-0 w-full h-full z-50' : ''
     }`}>
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
-
-        {/* LEFT: VIEW SELECTOR */}
+      <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
         <div className="flex gap-3 text-xs text-muted">
-            {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(v => (
-            <button
-                key={v}
-                className={v === "TERMINAL" ? "text-default font-medium" : ""}
-            >
-                {v}
+          {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(v => (
+            <button key={v} className={v === "TERMINAL" ? "text-default font-medium" : ""}>
+              {v}
             </button>
-            ))}
+          ))}
         </div>
 
-        {/* RIGHT: ACTIONS */}
         <div className="flex items-center gap-2 text-muted">
-            {/* NEW + BUTTON */}
-            <TerminalSettings onSpawn={spawnTerminal} />
-            <button onClick={() => setIsMaximized(prev => !prev)}>
-                {isMaximized ? '🗗' : '▢'}
-            </button>
-            <button 
-                onClick={toggleTerminalPanel}
-                title="Toggle Terminal Panel"
-            >
-                ✕
-            </button>
+          <TerminalSettings onSpawn={spawnTerminal} />
+          <button onClick={() => setIsMaximized(prev => !prev)}>
+            {isMaximized ? '🗗' : '▢'}
+          </button>
+          <button onClick={toggleTerminalPanel}>✕</button>
         </div>
-        </div>
+      </div>
 
-        {/* TERMINAL BODY */}
-        <div className="flex flex-1 overflow-hidden">
-
-        {/* LEFT TERMINAL */}
+      <div className="flex flex-1 overflow-hidden">
         <div ref={containerRef} className="flex-1 bg-black" />
 
-
-        {/* RIGHT TERMINAL LIST */}
         <div className="w-40 border-l border-default bg-muted text-xs">
-           {terminals.map(t => (
-                <div
-                    key={t.id}
-                    className={`flex justify-between items-center px-3 h-10 cursor-pointer relative group ${
-                        t.id === activeTerminalId ? "bg-default text-default" : ""
-                    }`}
-                >
-                    {/* Tab label */}
-                    <span onClick={() => setActiveTerminal(t.id)}>{t.shell}</span>
+          {terminals.map(t => (
+            <div
+              key={t.id}
+              className={`flex justify-between items-center px-3 h-10 cursor-pointer relative group ${
+                t.id === activeTerminalId ? "bg-default text-default" : ""
+              }`}
+            >
+              <span
+                onClick={() => {
+                  console.log(
+                    "[TAB CLICK DEBUG] Click:", t.id, "shell:", t.shell,
+                    "old active:", activeTerminalId
+                  );
+                  setActiveTerminal(t.id);
+                  activeIdRef.current = t.id; // IMMEDIATE sync (bypass batching)
+                  forceUpdateRef.current += 1; // Force re-render to trigger effects
+                }}
+              >
+                {t.shell}
+              </span>
 
-                    {/* Trash icon appears on hover */}
-                    <button
-                        className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-lg"
-                        onClick={() => {
-                            // dispose xterm if active
-                            if (t.id === terminalIdRef.current && termRef.current) {
-                                termRef.current.dispose();
-                                termRef.current = null;
-                                fitRef.current = null;
-                                terminalIdRef.current = null;
-                                setTerminalId(null);
-                            }
-
-                            // ADD: Kill backend terminal on explicit close (assuming 'terminal_kill' exists in your Rust backend; if not, implement it there)
-                            if (t.id) {
-                              console.log("[TERMINAL][DEBUG] Killing backend terminal ID:", t.id);
-                              invoke("terminal_kill", { id: t.id }).catch(console.error);
-                            }
-
-                            // remove from store
-                            closeTerminal(t.id);
-                        }}
-                        title="Close terminal"
-                    >
-                        🗑️
-                    </button>
-
-                </div>
-            ))}
+              <button
+                className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-lg"
+                onClick={() => {
+                  if (t.id) {
+                    console.log("[KILL DEBUG] Killing:", t.id);
+                    invoke("terminal_kill", { id: t.id }).catch(console.error);
+                  }
+                  closeTerminal(t.id);
+                }}
+                title="Close"
+              >
+                🗑️
+              </button>
+            </div>
+          ))}
         </div>
-        </div>
+      </div>
     </div>
-    );
-
+  );
 }

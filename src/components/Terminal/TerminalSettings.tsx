@@ -1,4 +1,13 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  useFloating,
+  offset,
+  flip,
+  shift,
+  autoUpdate,
+  Placement,
+} from "@floating-ui/react-dom";
 
 const SHELL_OPTIONS = [
   { label: "Default (OS)", value: null },
@@ -17,6 +26,80 @@ interface TerminalSettingsProps {
 export default function TerminalSettings({ onSpawn }: TerminalSettingsProps) {
   const [open, setOpen] = useState(false);
 
+  const { refs, floatingStyles, placement, x, y, strategy } = useFloating({
+    open,
+    placement: "bottom-end" as Placement,
+    middleware: [
+      offset(6),
+      flip({
+        fallbackPlacements: ["top-end", "top-start", "bottom-start"],
+        padding: 8,
+      }),
+      shift({ padding: 8 }),
+    ],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const isDropUp = placement.startsWith("top");
+
+  // ────────────────────────────── DEBUG LOGGING ──────────────────────────────
+  if (open) {
+    console.log("=== TERMINAL DROPDOWN DEBUG ===");
+    console.log("Current placement (should flip to top-* when low):", placement);
+    console.log("Strategy:", strategy);
+    console.log("Computed x / y:", x, y);
+    console.log("Floating styles object:", floatingStyles);
+    
+    if (refs.reference.current) {
+      const rect = refs.reference.current.getBoundingClientRect();
+      console.log("Reference button position:", {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        height: rect.height,
+      });
+      console.log("Space below button:", window.innerHeight - rect.bottom);
+    } else {
+      console.log("WARNING: Reference button ref is missing!");
+    }
+
+    console.log("Is drop-up mode active?", isDropUp);
+    console.log("================================");
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const menuContent = open ? (
+    <div
+      ref={refs.setFloating}
+      style={{
+        ...floatingStyles,
+        zIndex: 99999,           // very high so it punches through everything
+        minWidth: "192px",       // w-48 = 12rem = 192px
+        backgroundColor: "#1e1e1e", // force dark bg in case tailwind fails
+      }}
+      className={`
+        bg-muted border border-default shadow-2xl rounded-md 
+        overflow-hidden origin-${isDropUp ? "bottom" : "top"}
+        transition-opacity duration-100
+      `}
+    >
+      {SHELL_OPTIONS.map((opt) => (
+        <button
+          key={opt.label}
+          onClick={() => {
+            onSpawn(opt.value);
+            setOpen(false);
+          }}
+          className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#2a2d2e] hover:text-white transition-colors"
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <div className="relative flex items-center">
       {/* + Button */}
@@ -30,30 +113,15 @@ export default function TerminalSettings({ onSpawn }: TerminalSettingsProps) {
 
       {/* Dropdown Toggle */}
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={refs.setReference}
+        onClick={() => setOpen((v) => !v)}
         className="px-1 hover:text-default"
         title="Select Terminal Type"
       >
         ▾
       </button>
 
-      {/* Dropdown Menu */}
-      {open && (
-        <div className="absolute right-0 top-8 w-44 bg-muted border border-default shadow-lg z-50">
-          {SHELL_OPTIONS.map(opt => (
-            <button
-              key={opt.label}
-              onClick={() => {
-                setOpen(false);
-                onSpawn(opt.value);
-              }}
-              className="w-full text-left px-3 py-2 hover:bg-default"
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {menuContent && createPortal(menuContent, document.body)}
     </div>
   );
 }

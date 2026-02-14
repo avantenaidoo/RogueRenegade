@@ -434,7 +434,6 @@ const currentUser = useEditorStore(state => state.currentUser);
                 {/* TERMINAL ONLY */}
                 <div
                   style={{ height: terminalHeight }}
-                  className="overflow-hidden"
                 >
                   <TerminalPanel
                     workspaceId={focusedWorkspaceId}
