@@ -13,7 +13,7 @@ import DashboardOverlay from "../dashboard/DashboardOverlay";
 
 import { useEditorStore } from "../store";
 
-import { backendFetch } from "../lib/backend";
+// import { backendFetch } from "../lib/backend";
 
 import TerminalPanel from "./Terminal/TerminalPanel";
 interface CanvasProps {
@@ -63,15 +63,15 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
 
     /* ───────────── BACKEND CONNECTIVITY TEST ───────────── */
-    useEffect(() => {
-        backendFetch("/ping")
-        .then((res) => {
-            console.log("✅ BACKEND SIGNED PING OK", res);
-        })
-        .catch((err) => {
-            console.error("❌ BACKEND SIGNED PING FAILED", err);
-        });
-    }, []);
+    // useEffect(() => {
+    //     backendFetch("/ping")
+    //     .then((res) => {
+    //         console.log("✅ BACKEND SIGNED PING OK", res);
+    //     })
+    //     .catch((err) => {
+    //         console.error("❌ BACKEND SIGNED PING FAILED", err);
+    //     });
+    // }, []);
 
 
 

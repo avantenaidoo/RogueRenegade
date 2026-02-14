@@ -5,6 +5,8 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 import { useEditorStore } from "../../store";
+import TerminalSettings from "./TerminalSettings";
+
 
 
 export default function TerminalPanel({
@@ -171,6 +173,26 @@ export default function TerminalPanel({
     return () => observer.disconnect();
   }, [terminalId]);
 
+    const spawnTerminal = async (shell: string | null) => {
+    const currentRoot = workspaceRoot ?? undefined;
+
+    const [id, resolvedShell] = await invoke<[string, string]>("terminal_spawn", {
+      shell,
+      cwd: currentRoot,
+    });
+
+    const fallbackWsId = workspaceId ?? `blank-${Date.now()}`;
+
+    useEditorStore.getState().addTerminal({
+      id,
+      shell: resolvedShell,
+      workspaceId: fallbackWsId,
+      active: true,
+    });
+
+    useEditorStore.getState().setActiveTerminal(id);
+  };
+
     return (
     <div className={`flex flex-col w-full h-full bg-default border-t border-default ${
         isMaximized ? 'fixed top-0 left-0 w-full h-full z-50' : ''
@@ -194,56 +216,7 @@ export default function TerminalPanel({
         {/* RIGHT: ACTIONS */}
         <div className="flex items-center gap-2 text-muted">
             {/* NEW + BUTTON */}
-            <button
-                onClick={() => {
-                    (async () => {
-                        // No early return — spawn even if no workspace
-                        const currentRoot = workspaceRoot ?? undefined;  // fallback to backend default cwd
-
-                        console.log("[TERMINAL][NEW] Creating terminal (workspace may be blank)");
-
-                        const [id, shell] = await invoke<[string, string]>("terminal_spawn", {
-                            shell: null,
-                            cwd: currentRoot,  // undefined = backend decides (usually home dir or /)
-                        });
-
-                        // Use a fallback workspace ID if null (generate temp one or use null)
-                        const fallbackWsId = workspaceId ?? `blank-${Date.now()}`;
-
-                        useEditorStore.getState().addTerminal({
-                            id,
-                            shell,
-                            workspaceId: fallbackWsId,  // store it under a temp ID
-                            active: true,
-                        });
-
-                        useEditorStore.getState().setActiveTerminal(id);
-
-                        // Optional: If blank, maybe auto-set a default workspace name or something later
-                        console.log("[TERMINAL][NEW] Added terminal ID:", id, "in workspace:", fallbackWsId);
-                    })();
-                }}
-                title="New Terminal"
-                className="p-1 hover:text-default transition-colors flex items-center justify-center"
-                // NO disabled — always clickable
-            >
-                <svg 
-                    width="20" 
-                    height="20" 
-                    viewBox="0 0 20 20" 
-                    fill="none" 
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="text-current"
-                >
-                    <path 
-                        d="M10 4V16M4 10H16" 
-                        stroke="currentColor" 
-                        strokeWidth="3" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                    />
-                </svg>
-            </button>
+            <TerminalSettings onSpawn={spawnTerminal} />
             <button onClick={() => setIsMaximized(prev => !prev)}>
                 {isMaximized ? '🗗' : '▢'}
             </button>
