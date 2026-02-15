@@ -9,7 +9,7 @@ import GitStatus from "./GitStatus";
 import StatusBar from "./StatusBar";
 import CollaborationPanel from "./CollaborationPanel";
 import DashboardOverlay from "../dashboard/DashboardOverlay";
-import SidebarPanel from "./SidebarPanel"; // ← IMPORTED SIDEBARPANEL
+import SidebarPanel from "./SidebarPanel";
 
 import { useEditorStore } from "../store";
 
@@ -67,7 +67,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const [isResizing, setIsResizing] = useState(false);
 
-  /* 🔥🔥🔥 CHAT MAXIMIZE STATE (THIS WAS MISSING) 🔥🔥🔥 */
+  /* 🔥 CHAT MAXIMIZE STATE */
   const [isChatMaximized, setIsChatMaximized] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(260);
   const terminalDragging = React.useRef(false);
@@ -224,161 +224,189 @@ export const Canvas: React.FC<CanvasProps> = ({
         />
 
         {/* LEFT — FILE EXPLORER WITH TRANSITION */}
-        {!isChatMaximized && (
+        <div
+          className={`flex border-r overflow-hidden transition-all duration-300 ease-in-out ${
+            isExplorerResizing ? "transition-none" : ""
+          }`}
+          style={{
+            width: activeSidebarPanel === "explorer" ? `${explorerWidth}px` : "0px",
+          }}
+        >
           <div
-            className={`flex border-r overflow-hidden ${
-              !isExplorerResizing ? "transition-all duration-300 ease-in-out" : ""
+            className={`flex-1 overflow-auto transition-opacity duration-300 ease-in-out ${
+              activeSidebarPanel === "explorer" ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
-            style={{
-              width: activeSidebarPanel === "explorer" ? explorerWidth : 0,
-            }}
           >
-            <div
-              className={`flex-1 overflow-auto ${
-                !isExplorerResizing
-                  ? "transition-opacity duration-300 ease-in-out"
-                  : ""
-              } ${
-                activeSidebarPanel === "explorer" ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              {activeSidebarPanel === "explorer" && <FileExplorer />}
-            </div>
-
-            {activeSidebarPanel === "explorer" && (
-              <div
-                className="w-1 hover:bg-blue-500/40"
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => {
-                  setIsExplorerResizing(true);
-                  document.body.style.cursor = "ew-resize";
-                  document.body.style.userSelect = "none";
-                }}
-              />
-            )}
+            {activeSidebarPanel === "explorer" && <FileExplorer />}
           </div>
-        )}
+
+          {activeSidebarPanel === "explorer" && (
+            <div
+              className="w-1 hover:bg-blue-500/40"
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => {
+                setIsExplorerResizing(true);
+                document.body.style.cursor = "ew-resize";
+                document.body.style.userSelect = "none";
+              }}
+            />
+          )}
+        </div>
 
         {/* CENTER — EDITOR */}
-        {!isChatMaximized && (
-          <div className="flex flex-col flex-1 min-w-0">
-            <div className="h-9 flex border-b shrink-0 overflow-x-auto">
-              {workspaceTabs.map((tab, i) => (
-                <div
-                  key={tab.path}
-                  onClick={() => setActiveTab(i)}
-                  className={`flex items-center gap-2 px-3 text-sm cursor-pointer
-                    ${
-                      i === workspaceActiveIndex
-                        ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
-                        : "bg-transparent text-default hover:bg-neutral-500"
-                    }`}
-                >
-                  <span className="truncate max-w-40">{tab.path.split(/[\\/]/).pop()}</span>
-                  {tab.dirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(i);
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex-1 min-h-0">
-              {activeTab && (
-                <Editor
-                  value={activeTab.content}
-                  path={activeTab.path}
-                  theme={theme}
-                  onChange={(val) => {
-                    if (!activeTab) return;
-                    updateTab(workspaceActiveIndex, { content: val ?? "" });
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* RIGHT — COLLAB PANEL */}
-        {showCollaboration && (
-          <div
-            className="flex border-l bg-muted overflow-hidden"
-            style={{ width: isChatMaximized ? "100%" : collabWidth }}
-          >
-            {!isChatMaximized && (
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="h-9 flex border-b shrink-0 overflow-x-auto">
+            {workspaceTabs.map((tab, i) => (
               <div
-                className="w-1 hover:bg-blue-500/40"
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => {
-                  setIsResizing(true);
-                  document.body.style.cursor = "ew-resize";
-                  document.body.style.userSelect = "none";
+                key={tab.path}
+                onClick={() => setActiveTab(i)}
+                className={`flex items-center gap-2 px-3 text-sm cursor-pointer
+                  ${
+                    i === workspaceActiveIndex
+                      ? "bg-(--foreground)/65 text-(--background) shadow-inner border-b-2 border-blue-500"
+                      : "bg-transparent text-default hover:bg-neutral-500"
+                  }`}
+              >
+                <span className="truncate max-w-40">{tab.path.split(/[\\/]/).pop()}</span>
+                {tab.dirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(i);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex-1 min-h-0">
+            {activeTab && (
+              <Editor
+                value={activeTab.content}
+                path={activeTab.path}
+                theme={theme}
+                onChange={(val) => {
+                  if (!activeTab) return;
+                  updateTab(workspaceActiveIndex, { content: val ?? "" });
                 }}
               />
             )}
-            <div className="flex-1 overflow-hidden">
+          </div>
+        </div>
+
+        {/* RIGHT — COLLAB PANEL WITH TRANSITION */}
+        <div
+          className={`flex border-l bg-muted overflow-hidden transition-all duration-300 ease-in-out ${
+            isResizing ? "transition-none" : ""
+          }`}
+          style={{
+            width: showCollaboration ? (isChatMaximized ? "100%" : `${collabWidth}px`) : "0px",
+          }}
+        >
+          {showCollaboration && !isChatMaximized && (
+            <div
+              className="w-1 hover:bg-blue-500/40"
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => {
+                setIsResizing(true);
+                document.body.style.cursor = "ew-resize";
+                document.body.style.userSelect = "none";
+              }}
+            />
+          )}
+
+          <div
+            className={`flex-1 overflow-hidden transition-opacity duration-300 ease-in-out ${
+              showCollaboration ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            {showCollaboration && (
               <CollaborationPanel
                 username={currentUser?.username || "local-user"}
                 roomId="workspace"
                 onToggleMaximize={() => setIsChatMaximized((v) => !v)}
               />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* BOTTOM PANEL */}
-      {!isChatMaximized && (
-        <div className="border-t flex flex-col">
-          <div
-            className="h-1 bg-neutral-700 hover:bg-blue-500/50"
-            style={{ cursor: "ns-resize" }}
-            onMouseDown={() => {
-              terminalDragging.current = true;
-              document.body.style.cursor = "ns-resize";
-              document.body.style.userSelect = "none";
-            }}
-          />
-
-          <div className="flex border-b text-sm shrink-0">
-            <button onClick={() => setBottomTab("git")}>Git</button>
-            <button onClick={() => setBottomTab("terminal")}>Terminal</button>
-          </div>
-
-          <div className="flex-1 overflow-hidden">
-            {bottomTab === "git" && <GitPanel />}
-            {bottomTab === "terminal" && (
-              <>
-                <div
-                  className="h-1 bg-neutral-700 hover:bg-blue-500/50"
-                  style={{ cursor: "ns-resize" }}
-                  onMouseDown={() => {
-                    terminalDragging.current = true;
-                    document.body.style.cursor = "ns-resize";
-                    document.body.style.userSelect = "none";
-                  }}
-                />
-                <div style={{ height: terminalHeight }}>
-                  <TerminalPanel workspaceId={focusedWorkspaceId} workspaceRoot={repoPath} />
-                </div>
-              </>
             )}
           </div>
         </div>
-      )}
+      </div>
+
+      {/* BOTTOM PANEL WITH SMOOTH TRANSITION */}
+      <div
+        className={`border-t flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
+          bottomTab === "terminal" ? "max-h-[50vh] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        {/* RESIZE HANDLE */}
+        <div
+          className={`h-1 bg-neutral-700 hover:bg-blue-500/50 transition-opacity duration-300 ${
+            bottomTab === "terminal" ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+          style={{ cursor: "ns-resize" }}
+          onMouseDown={() => {
+            if (bottomTab !== "terminal") return;
+            terminalDragging.current = true;
+            document.body.style.cursor = "ns-resize";
+            document.body.style.userSelect = "none";
+          }}
+        />
+
+        {/* TAB BAR */}
+        <div
+          className={`flex border-b text-sm shrink-0 transition-opacity duration-300 ${
+            bottomTab === "terminal" ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <button onClick={() => setBottomTab("git")}>Git</button>
+          <button onClick={() => setBottomTab("terminal")}>Terminal</button>
+        </div>
+
+        {/* CONTENT */}
+        <div className="flex-1 overflow-hidden">
+          {bottomTab === "git" && (
+            <div className="h-full overflow-hidden transition-opacity duration-300 ease-in-out">
+              <GitPanel />
+            </div>
+          )}
+
+          {bottomTab === "terminal" && (
+            <div className="h-full transition-opacity duration-300 ease-in-out">
+              <div
+                className={`h-1 bg-neutral-700 hover:bg-blue-500/50 transition-opacity duration-300 ${
+                  bottomTab === "terminal" ? "opacity-100" : "opacity-0 pointer-events-none"
+                }`}
+                style={{ cursor: "ns-resize" }}
+                onMouseDown={() => {
+                  if (bottomTab !== "terminal") return;
+                  terminalDragging.current = true;
+                  document.body.style.cursor = "ns-resize";
+                  document.body.style.userSelect = "none";
+                }}
+              />
+              <div
+                style={{
+                  height: terminalHeight,
+                  // Disable transition during drag for zero lag
+                  transition: terminalDragging.current
+                    ? "none"
+                    : "height 0.3s ease-in-out",
+                  overflow: "hidden",
+                }}
+              >
+                <TerminalPanel workspaceId={focusedWorkspaceId} workspaceRoot={repoPath} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* STATUS BAR */}
-      {!isChatMaximized && (
-        <div className="h-6 border-t flex shrink-0">
-          <GitStatus />
-          <StatusBar />
-        </div>
-      )}
+      <div className="h-6 border-t flex shrink-0">
+        <GitStatus />
+        <StatusBar />
+      </div>
 
       <DashboardOverlay
         open={showDashboard}
