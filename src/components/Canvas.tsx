@@ -9,12 +9,9 @@ import GitStatus from "./GitStatus";
 import StatusBar from "./StatusBar";
 import CollaborationPanel from "./CollaborationPanel";
 import DashboardOverlay from "../dashboard/DashboardOverlay";
-
-import SidebarPanel from "./SidebarPanel"; // ← ADDED
+import SidebarPanel from "./SidebarPanel"; // ← IMPORTED SIDEBARPANEL
 
 import { useEditorStore } from "../store";
-
-// import { backendFetch } from "../lib/backend";
 
 import TerminalPanel from "./Terminal/TerminalPanel";
 
@@ -45,12 +42,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   }, []);
 
   const {
-    // 🔥 workspace-aware
     focusedWorkspaceId,
     repoPath,
     tabsByWorkspace,
     activeTabIndexByWorkspace,
-
     setActiveTab,
     closeTab,
     updateTab,
@@ -77,9 +72,10 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [terminalHeight, setTerminalHeight] = useState(260);
   const terminalDragging = React.useRef(false);
 
-  const [activeSidebarPanel, setActiveSidebarPanel] = useState("explorer");
+  // Sidebar panel state
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState<string | null>("explorer");
 
-  // 🔥 WORKSPACE-AWARE TAB DERIVATION
+  // Workspace tabs
   const workspaceTabs =
     focusedWorkspaceId ? tabsByWorkspace[focusedWorkspaceId] ?? [] : [];
 
@@ -88,110 +84,84 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const activeTab = workspaceTabs[workspaceActiveIndex];
 
-  // 1. Restore terminals when app loads (right after loadWorkspaces)
+  // Restore terminals
   useEffect(() => {
     useEditorStore.getState().loadWorkspaces();
-    useEditorStore.getState().restoreTerminals(); // ← ADD THIS LINE
+    useEditorStore.getState().restoreTerminals();
   }, []);
 
-  // Auto-save terminals on change
+  // Auto-save terminals
   useEffect(() => {
     const unsubscribe = useEditorStore.subscribe((state) => {
       const terminals = state.terminals;
       sessionStorage.setItem("rride:terminals", JSON.stringify(terminals));
-      console.log("[AUTO-SAVE] Terminals saved:", terminals.length);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Theme: window-specific (sessionStorage) + system default
-  const THEME_KEY = "rride:theme-preference-session"; // unique name to avoid old localStorage conflicts
-
-  // Get system preference
+  // Theme
+  const THEME_KEY = "rride:theme-preference-session";
   const getSystemTheme = (): "vs-dark" | "vs-light" =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "vs-dark" : "vs-light";
 
-  // Load saved or system theme
   const saved = sessionStorage.getItem(THEME_KEY);
   const initialTheme: "vs-dark" | "vs-light" =
     saved === "vs-dark" || saved === "vs-light" ? saved : getSystemTheme();
 
-  // Apply .dark class SYNCHRONOUSLY — before React renders anything
   document.documentElement.classList.toggle("dark", initialTheme === "vs-dark");
 
   const [theme, setTheme] = useState<"vs-dark" | "vs-light">(initialTheme);
 
-  /* ───────────── THEME ───────────── */
-  // Keep in sync if state changes later
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "vs-dark");
-    console.log(
-      "[THEME] Applied:",
-      theme,
-      "→ dark class:",
-      document.documentElement.classList.contains("dark")
-    );
   }, [theme]);
 
-  // Save to sessionStorage (per-window)
   useEffect(() => {
     sessionStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  /* ───────────── SAVE (CTRL+S) ───────────── */
+  // Save (CTRL+S)
   useEffect(() => {
     async function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         if (!activeTab) return;
-
         await writeTextFile(activeTab.path, activeTab.content);
-        updateTab(workspaceActiveIndex, {
-          savedContent: activeTab.content,
-        });
+        updateTab(workspaceActiveIndex, { savedContent: activeTab.content });
       }
     }
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeTab, markClean]);
 
-  /* ───────────── TOGGLE TERMINAL (CTRL+`) ───────────── */
+  // Toggle terminal (CTRL+`)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "`") {
         e.preventDefault();
-        toggleTerminalPanel(); // ← this is the one from the store!
+        toggleTerminalPanel();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleTerminalPanel]); // important: depend on the stable function
+  }, [toggleTerminalPanel]);
 
-  /* ───────────── RESIZE HANDLING ───────────── */
+  /* ───────────── RESIZE HANDLERS ───────────── */
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!isResizing || isChatMaximized) return;
-
       const newWidth = window.innerWidth - e.clientX;
-      if (newWidth >= 240 && newWidth <= 600) {
-        setCollabWidth(newWidth);
-      }
+      if (newWidth >= 240 && newWidth <= 600) setCollabWidth(newWidth);
     }
-
     function onMouseUp() {
       setIsResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     }
-
     if (isResizing) {
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     }
-
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
@@ -199,25 +169,17 @@ export const Canvas: React.FC<CanvasProps> = ({
   }, [isResizing, isChatMaximized]);
 
   useEffect(() => {
-    console.log("showDashboard =", showDashboard);
-  }, [showDashboard]);
-
-  useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!terminalDragging.current) return;
-
       setTerminalHeight((h) => Math.min(600, Math.max(120, h - e.movementY)));
     }
-
     function onMouseUp() {
       terminalDragging.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     }
-
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
@@ -227,24 +189,18 @@ export const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       if (!isExplorerResizing || isChatMaximized) return;
-
       const newWidth = e.clientX;
-      if (newWidth >= 180 && newWidth <= 420) {
-        setExplorerWidth(newWidth);
-      }
+      if (newWidth >= 180 && newWidth <= 420) setExplorerWidth(newWidth);
     }
-
     function onMouseUp() {
       setIsExplorerResizing(false);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
     }
-
     if (isExplorerResizing) {
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     }
-
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
@@ -253,44 +209,59 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   const currentUser = useEditorStore((state) => state.currentUser);
 
+  /* ───────────── RENDER ───────────── */
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
-      {/* TITLE BAR */}
       <TitleBar onToggleDashboard={() => setShowDashboard((v) => !v)} />
 
-      {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT — SIDEBAR PANEL */}
         <SidebarPanel
-          activePanel={activeSidebarPanel}
-          onSelectPanel={(panel) => setActiveSidebarPanel(panel)}
+          activePanel={activeSidebarPanel || ""}
+          onSelectPanel={(panel) =>
+            setActiveSidebarPanel((prev) => (prev === panel ? null : panel))
+          }
         />
 
-        {/* LEFT — FILE EXPLORER */}
+        {/* LEFT — FILE EXPLORER WITH TRANSITION */}
         {!isChatMaximized && (
-          <div className="flex border-r overflow-hidden" style={{ width: explorerWidth }}>
-            {/* CONTENT */}
-            <div className="flex-1 overflow-auto">
-              <FileExplorer />
+          <div
+            className={`flex border-r overflow-hidden ${
+              !isExplorerResizing ? "transition-all duration-300 ease-in-out" : ""
+            }`}
+            style={{
+              width: activeSidebarPanel === "explorer" ? explorerWidth : 0,
+            }}
+          >
+            <div
+              className={`flex-1 overflow-auto ${
+                !isExplorerResizing
+                  ? "transition-opacity duration-300 ease-in-out"
+                  : ""
+              } ${
+                activeSidebarPanel === "explorer" ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              {activeSidebarPanel === "explorer" && <FileExplorer />}
             </div>
 
-            {/* RESIZE HANDLE */}
-            <div
-              className="w-1 hover:bg-blue-500/40"
-              style={{ cursor: "ew-resize" }}
-              onMouseDown={() => {
-                setIsExplorerResizing(true);
-                document.body.style.cursor = "ew-resize";
-                document.body.style.userSelect = "none";
-              }}
-            />
+            {activeSidebarPanel === "explorer" && (
+              <div
+                className="w-1 hover:bg-blue-500/40"
+                style={{ cursor: "ew-resize" }}
+                onMouseDown={() => {
+                  setIsExplorerResizing(true);
+                  document.body.style.cursor = "ew-resize";
+                  document.body.style.userSelect = "none";
+                }}
+              />
+            )}
           </div>
         )}
 
         {/* CENTER — EDITOR */}
         {!isChatMaximized && (
           <div className="flex flex-col flex-1 min-w-0">
-            {/* TABS */}
             <div className="h-9 flex border-b shrink-0 overflow-x-auto">
               {workspaceTabs.map((tab, i) => (
                 <div
@@ -304,9 +275,7 @@ export const Canvas: React.FC<CanvasProps> = ({
                     }`}
                 >
                   <span className="truncate max-w-40">{tab.path.split(/[\\/]/).pop()}</span>
-
                   {tab.dirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
-
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -319,7 +288,6 @@ export const Canvas: React.FC<CanvasProps> = ({
               ))}
             </div>
 
-            {/* EDITOR */}
             <div className="flex-1 min-h-0">
               {activeTab && (
                 <Editor
@@ -336,15 +304,12 @@ export const Canvas: React.FC<CanvasProps> = ({
           </div>
         )}
 
-        {/* 🔥 RIGHT — COLLABORATION PANEL */}
+        {/* RIGHT — COLLAB PANEL */}
         {showCollaboration && (
           <div
             className="flex border-l bg-muted overflow-hidden"
-            style={{
-              width: isChatMaximized ? "100%" : collabWidth,
-            }}
+            style={{ width: isChatMaximized ? "100%" : collabWidth }}
           >
-            {/* RESIZE HANDLE (DISABLED WHEN MAXIMIZED) */}
             {!isChatMaximized && (
               <div
                 className="w-1 hover:bg-blue-500/40"
@@ -356,8 +321,6 @@ export const Canvas: React.FC<CanvasProps> = ({
                 }}
               />
             )}
-
-            {/* PANEL CONTENT */}
             <div className="flex-1 overflow-hidden">
               <CollaborationPanel
                 username={currentUser?.username || "local-user"}
@@ -372,7 +335,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       {/* BOTTOM PANEL */}
       {!isChatMaximized && (
         <div className="border-t flex flex-col">
-          {/* RESIZE HANDLE */}
           <div
             className="h-1 bg-neutral-700 hover:bg-blue-500/50"
             style={{ cursor: "ns-resize" }}
@@ -383,23 +345,15 @@ export const Canvas: React.FC<CanvasProps> = ({
             }}
           />
 
-          {/* TAB BAR */}
           <div className="flex border-b text-sm shrink-0">
             <button onClick={() => setBottomTab("git")}>Git</button>
             <button onClick={() => setBottomTab("terminal")}>Terminal</button>
           </div>
 
-          {/* CONTENT */}
           <div className="flex-1 overflow-hidden">
-            {bottomTab === "git" && (
-              <div className="h-full overflow-hidden">
-                <GitPanel />
-              </div>
-            )}
-
+            {bottomTab === "git" && <GitPanel />}
             {bottomTab === "terminal" && (
               <>
-                {/* TERMINAL RESIZE HANDLE */}
                 <div
                   className="h-1 bg-neutral-700 hover:bg-blue-500/50"
                   style={{ cursor: "ns-resize" }}
@@ -409,8 +363,6 @@ export const Canvas: React.FC<CanvasProps> = ({
                     document.body.style.userSelect = "none";
                   }}
                 />
-
-                {/* TERMINAL ONLY */}
                 <div style={{ height: terminalHeight }}>
                   <TerminalPanel workspaceId={focusedWorkspaceId} workspaceRoot={repoPath} />
                 </div>
