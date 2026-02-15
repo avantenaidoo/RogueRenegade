@@ -25,7 +25,7 @@ serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 
-tauri = { version = "2.9", features = [] } 
+tauri = { version = "2.10.1", features = [] } 
 
 # Official plugins (use latest patch versions)
 tauri-plugin-fs  = "^2"

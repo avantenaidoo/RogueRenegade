@@ -10,12 +10,14 @@ import StatusBar from "./StatusBar";
 import CollaborationPanel from "./CollaborationPanel";
 import DashboardOverlay from "../dashboard/DashboardOverlay";
 
+import SidebarPanel from "./SidebarPanel"; // ← ADDED
 
 import { useEditorStore } from "../store";
 
 // import { backendFetch } from "../lib/backend";
 
 import TerminalPanel from "./Terminal/TerminalPanel";
+
 interface CanvasProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
@@ -29,18 +31,18 @@ export const Canvas: React.FC<CanvasProps> = ({
   pendingApprovalCount,
   refreshPendingApprovals,
 }) => {
-    /* ───────────── WORKSPACE BOOTSTRAP (RUN ONCE) ───────────── */
-    useEffect(() => {
-      useEditorStore.getState().loadWorkspaces();
-    }, []);
+  /* ───────────── WORKSPACE BOOTSTRAP (RUN ONCE) ───────────── */
+  useEffect(() => {
+    useEditorStore.getState().loadWorkspaces();
+  }, []);
 
-    /* 🔥 LOAD FILE EXPLORER WIDTH */
-    useEffect(() => {
-      const saved = localStorage.getItem("explorerWidth");
-      if (saved) {
-        setExplorerWidth(Number(saved));
-      }
-    }, []);
+  /* 🔥 LOAD FILE EXPLORER WIDTH */
+  useEffect(() => {
+    const saved = localStorage.getItem("explorerWidth");
+    if (saved) {
+      setExplorerWidth(Number(saved));
+    }
+  }, []);
 
   const {
     // 🔥 workspace-aware
@@ -54,26 +56,12 @@ export const Canvas: React.FC<CanvasProps> = ({
     updateTab,
     markClean,
     showCollaboration,
-    bottomTab, 
-    setBottomTab, 
+    bottomTab,
+    setBottomTab,
     toggleTerminalPanel,
   } = useEditorStore();
 
-
   const [showDashboard, setShowDashboard] = useState(false);
-
-    /* ───────────── BACKEND CONNECTIVITY TEST ───────────── */
-    // useEffect(() => {
-    //     backendFetch("/ping")
-    //     .then((res) => {
-    //         console.log("✅ BACKEND SIGNED PING OK", res);
-    //     })
-    //     .catch((err) => {
-    //         console.error("❌ BACKEND SIGNED PING FAILED", err);
-    //     });
-    // }, []);
-
-
 
   /* 🔥 COLLAB SIDEBAR WIDTH */
   const [collabWidth, setCollabWidth] = useState(320);
@@ -89,26 +77,21 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [terminalHeight, setTerminalHeight] = useState(260);
   const terminalDragging = React.useRef(false);
 
-
-
+  const [activeSidebarPanel, setActiveSidebarPanel] = useState("explorer");
 
   // 🔥 WORKSPACE-AWARE TAB DERIVATION
   const workspaceTabs =
-    focusedWorkspaceId
-      ? tabsByWorkspace[focusedWorkspaceId] ?? []
-      : [];
+    focusedWorkspaceId ? tabsByWorkspace[focusedWorkspaceId] ?? [] : [];
 
   const workspaceActiveIndex =
-    focusedWorkspaceId
-      ? activeTabIndexByWorkspace[focusedWorkspaceId] ?? 0
-      : 0;
+    focusedWorkspaceId ? activeTabIndexByWorkspace[focusedWorkspaceId] ?? 0 : 0;
 
   const activeTab = workspaceTabs[workspaceActiveIndex];
 
   // 1. Restore terminals when app loads (right after loadWorkspaces)
   useEffect(() => {
     useEditorStore.getState().loadWorkspaces();
-    useEditorStore.getState().restoreTerminals();  // ← ADD THIS LINE
+    useEditorStore.getState().restoreTerminals(); // ← ADD THIS LINE
   }, []);
 
   // Auto-save terminals on change
@@ -131,7 +114,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Load saved or system theme
   const saved = sessionStorage.getItem(THEME_KEY);
-  const initialTheme: "vs-dark" | "vs-light" = 
+  const initialTheme: "vs-dark" | "vs-light" =
     saved === "vs-dark" || saved === "vs-light" ? saved : getSystemTheme();
 
   // Apply .dark class SYNCHRONOUSLY — before React renders anything
@@ -143,7 +126,12 @@ export const Canvas: React.FC<CanvasProps> = ({
   // Keep in sync if state changes later
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "vs-dark");
-    console.log("[THEME] Applied:", theme, "→ dark class:", document.documentElement.classList.contains("dark"));
+    console.log(
+      "[THEME] Applied:",
+      theme,
+      "→ dark class:",
+      document.documentElement.classList.contains("dark")
+    );
   }, [theme]);
 
   // Save to sessionStorage (per-window)
@@ -162,7 +150,6 @@ export const Canvas: React.FC<CanvasProps> = ({
         updateTab(workspaceActiveIndex, {
           savedContent: activeTab.content,
         });
-
       }
     }
 
@@ -175,13 +162,13 @@ export const Canvas: React.FC<CanvasProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "`") {
         e.preventDefault();
-        toggleTerminalPanel();          // ← this is the one from the store!
+        toggleTerminalPanel(); // ← this is the one from the store!
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleTerminalPanel]);           // important: depend on the stable function
+  }, [toggleTerminalPanel]); // important: depend on the stable function
 
   /* ───────────── RESIZE HANDLING ───────────── */
   useEffect(() => {
@@ -216,89 +203,88 @@ export const Canvas: React.FC<CanvasProps> = ({
   }, [showDashboard]);
 
   useEffect(() => {
-  function onMouseMove(e: MouseEvent) {
-    if (!terminalDragging.current) return;
+    function onMouseMove(e: MouseEvent) {
+      if (!terminalDragging.current) return;
 
-    setTerminalHeight(h =>
-      Math.min(600, Math.max(120, h - e.movementY))
-    );
-  }
-
-  function onMouseUp() {
-    terminalDragging.current = false;
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  }
-
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
-
-  return () => {
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-  };
-}, []);
-
-useEffect(() => {
-  function onMouseMove(e: MouseEvent) {
-    if (!isExplorerResizing || isChatMaximized) return;
-
-    const newWidth = e.clientX;
-    if (newWidth >= 180 && newWidth <= 420) {
-      setExplorerWidth(newWidth);
+      setTerminalHeight((h) => Math.min(600, Math.max(120, h - e.movementY)));
     }
-  }
 
-  function onMouseUp() {
-    setIsExplorerResizing(false);
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  }
+    function onMouseUp() {
+      terminalDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
 
-  if (isExplorerResizing) {
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-  }
 
-  return () => {
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-  };
-}, [isExplorerResizing, isChatMaximized]);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
-const currentUser = useEditorStore(state => state.currentUser);
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isExplorerResizing || isChatMaximized) return;
 
+      const newWidth = e.clientX;
+      if (newWidth >= 180 && newWidth <= 420) {
+        setExplorerWidth(newWidth);
+      }
+    }
+
+    function onMouseUp() {
+      setIsExplorerResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    if (isExplorerResizing) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [isExplorerResizing, isChatMaximized]);
+
+  const currentUser = useEditorStore((state) => state.currentUser);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       {/* TITLE BAR */}
-      <TitleBar onToggleDashboard={() => setShowDashboard(v => !v)} />
+      <TitleBar onToggleDashboard={() => setShowDashboard((v) => !v)} />
 
       {/* MAIN AREA */}
       <div className="flex flex-1 overflow-hidden">
+        {/* LEFT — SIDEBAR PANEL */}
+        <SidebarPanel
+          activePanel={activeSidebarPanel}
+          onSelectPanel={(panel) => setActiveSidebarPanel(panel)}
+        />
+
         {/* LEFT — FILE EXPLORER */}
         {!isChatMaximized && (
-            <div
-              className="flex border-r overflow-hidden"
-              style={{ width: explorerWidth }}
-            >
-              {/* CONTENT */}
-              <div className="flex-1 overflow-auto">
-                <FileExplorer />
-              </div>
-
-              {/* RESIZE HANDLE */}
-              <div
-                className="w-1 hover:bg-blue-500/40"
-                style={{ cursor: "ew-resize" }}
-                onMouseDown={() => {
-                  setIsExplorerResizing(true);
-                  document.body.style.cursor = "ew-resize";
-                  document.body.style.userSelect = "none";
-                }}
-              />
+          <div className="flex border-r overflow-hidden" style={{ width: explorerWidth }}>
+            {/* CONTENT */}
+            <div className="flex-1 overflow-auto">
+              <FileExplorer />
             </div>
 
+            {/* RESIZE HANDLE */}
+            <div
+              className="w-1 hover:bg-blue-500/40"
+              style={{ cursor: "ew-resize" }}
+              onMouseDown={() => {
+                setIsExplorerResizing(true);
+                document.body.style.cursor = "ew-resize";
+                document.body.style.userSelect = "none";
+              }}
+            />
+          </div>
         )}
 
         {/* CENTER — EDITOR */}
@@ -317,13 +303,9 @@ const currentUser = useEditorStore(state => state.currentUser);
                         : "bg-transparent text-default hover:bg-neutral-500"
                     }`}
                 >
-                  <span className="truncate max-w-40">
-                    {tab.path.split(/[\\/]/).pop()}
-                  </span>
+                  <span className="truncate max-w-40">{tab.path.split(/[\\/]/).pop()}</span>
 
-                  {tab.dirty && (
-                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                  )}
+                  {tab.dirty && <span className="w-2 h-2 rounded-full bg-red-500" />}
 
                   <button
                     onClick={(e) => {
@@ -346,7 +328,6 @@ const currentUser = useEditorStore(state => state.currentUser);
                   theme={theme}
                   onChange={(val) => {
                     if (!activeTab) return;
-
                     updateTab(workspaceActiveIndex, { content: val ?? "" });
                   }}
                 />
@@ -378,11 +359,11 @@ const currentUser = useEditorStore(state => state.currentUser);
 
             {/* PANEL CONTENT */}
             <div className="flex-1 overflow-hidden">
-            <CollaborationPanel
-              username={currentUser?.username || "local-user"}
-              roomId="workspace"
-              onToggleMaximize={() => setIsChatMaximized(v => !v)}
-            />
+              <CollaborationPanel
+                username={currentUser?.username || "local-user"}
+                roomId="workspace"
+                onToggleMaximize={() => setIsChatMaximized((v) => !v)}
+              />
             </div>
           </div>
         )}
@@ -390,9 +371,7 @@ const currentUser = useEditorStore(state => state.currentUser);
 
       {/* BOTTOM PANEL */}
       {!isChatMaximized && (
-        <div
-          className="border-t flex flex-col"
-        >
+        <div className="border-t flex flex-col">
           {/* RESIZE HANDLE */}
           <div
             className="h-1 bg-neutral-700 hover:bg-blue-500/50"
@@ -432,21 +411,14 @@ const currentUser = useEditorStore(state => state.currentUser);
                 />
 
                 {/* TERMINAL ONLY */}
-                <div
-                  style={{ height: terminalHeight }}
-                >
-                  <TerminalPanel
-                    workspaceId={focusedWorkspaceId}
-                    workspaceRoot={repoPath}
-                 />
+                <div style={{ height: terminalHeight }}>
+                  <TerminalPanel workspaceId={focusedWorkspaceId} workspaceRoot={repoPath} />
                 </div>
               </>
             )}
           </div>
-
         </div>
       )}
-
 
       {/* STATUS BAR */}
       {!isChatMaximized && (
@@ -455,7 +427,8 @@ const currentUser = useEditorStore(state => state.currentUser);
           <StatusBar />
         </div>
       )}
-        <DashboardOverlay
+
+      <DashboardOverlay
         open={showDashboard}
         onClose={() => setShowDashboard(false)}
         theme={theme}
@@ -464,8 +437,7 @@ const currentUser = useEditorStore(state => state.currentUser);
         onLogout={onLogout}
         pendingApprovalCount={pendingApprovalCount}
         refreshPendingApprovals={refreshPendingApprovals}
-        />
-
+      />
     </div>
   );
 };

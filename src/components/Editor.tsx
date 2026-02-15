@@ -72,18 +72,19 @@ export default function Editor({
       forceConsistentCasingInFileNames: true,
     });
 
-    /* ✅ CREATE OR REUSE MODEL PER FILE */
-    let model = modelsRef.current.get(path);
+    /* ✅ SAFE CREATE OR REUSE MODEL PER FILE */
+    const uri = monaco.Uri.file(path);
+    let model = monaco.editor.getModel(uri); // ← check if Monaco already has it
+
     if (!model) {
       model = monaco.editor.createModel(
         value ?? "",
-        path.endsWith(".ts") || path.endsWith(".tsx")
-          ? "typescript"
-          : "javascript",
-        monaco.Uri.file(path)
+        path.endsWith(".ts") || path.endsWith(".tsx") ? "typescript" : "javascript",
+        uri
       );
-      modelsRef.current.set(path, model);
     }
+
+    modelsRef.current.set(path, model);
 
     if (editor.getModel() !== model) {
       editor.setModel(model);
@@ -149,9 +150,8 @@ export default function Editor({
       window.removeEventListener("workspace-changed", handler);
   }, []);
 
-
   /* ─────────────────────────────
-     🔥 SWITCH MODEL ON FILE CHANGE
+     🔥 SWITCH MODEL ON FILE CHANGE (SAFE)
      ───────────────────────────── */
   useEffect(() => {
     const editor = editorRef.current;
@@ -160,17 +160,18 @@ export default function Editor({
     const monaco = (window as any).monaco;
     if (!monaco) return;
 
-    let model = modelsRef.current.get(path);
+    const uri = monaco.Uri.file(path);
+    let model = monaco.editor.getModel(uri); // ← SAFE check
+
     if (!model) {
       model = monaco.editor.createModel(
         value ?? "",
-        path.endsWith(".ts") || path.endsWith(".tsx")
-          ? "typescript"
-          : "javascript",
-        monaco.Uri.file(path)
+        path.endsWith(".ts") || path.endsWith(".tsx") ? "typescript" : "javascript",
+        uri
       );
-      modelsRef.current.set(path, model);
     }
+
+    modelsRef.current.set(path, model);
 
     if (editor.getModel() !== model) {
       editor.setModel(model);
