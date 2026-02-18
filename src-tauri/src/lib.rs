@@ -792,6 +792,8 @@ pub fn run() {
             terminal::terminal_resize,
             workspace::get_workspaces,
             save_session,
+            terminal::terminal_ready,
+            terminal::terminal_redraw,
         ])
         .setup(|app| {
 

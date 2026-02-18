@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import "xterm/css/xterm.css";
 import { useEditorStore } from "../../store";
 import TerminalSettings from "./TerminalSettings";
+
+/* ─────────────────────────────────────────────
+   🔒 GLOBAL TERMINAL REGISTRY (SURVIVES UNMOUNT)
+   ───────────────────────────────────────────── */
+
+type TerminalInstance = {
+  term: Terminal;
+  fit: FitAddon;
+  unlisten: UnlistenFn | null;
+};
+
+const TERMINAL_REGISTRY: Record<string, TerminalInstance> = {};
+
+/* ───────────────────────────────────────────── */
 
 export default function TerminalPanel({
   workspaceId,
@@ -23,209 +37,217 @@ export default function TerminalPanel({
     toggleTerminalPanel,
   } = useEditorStore();
 
-  const terminalIdRef = useRef<string | null>(null);
-  const activeIdRef = useRef<string | null>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
-  const termRef = useRef<Terminal | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-
-  const didSetupRef = useRef(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  const forceUpdateRef = useRef(0);
-
-  // Force-sync ref on ANY Zustand active change
+  /* ─────────────────────────────────────────────
+     🧪 DEBUG — PROVES UNMOUNT / REMOUNT SAFETY
+     ───────────────────────────────────────────── */
   useEffect(() => {
-    const unsubscribe = useEditorStore.subscribe((state) => {
-      if (state.activeTerminalId !== activeIdRef.current) {
-        console.log(
-          "[ZUSTAND SUB DEBUG] Active changed via subscribe to:", state.activeTerminalId
-        );
-        activeIdRef.current = state.activeTerminalId;
+    console.log("=== TERMINAL PANEL DEBUG ===");
+    console.log("Active ID:", activeTerminalId);
+    console.log("Store terminal count:", terminals.length);
+    console.log("Registry keys:", Object.keys(TERMINAL_REGISTRY));
+    console.log("Container exists:", !!containerRef.current);
+    console.log(
+      "Container size:",
+      containerRef.current?.clientWidth,
+      containerRef.current?.clientHeight
+    );
+    console.log("Is maximized:", isMaximized);
+    console.log("============================");
+  });
+
+  /* ─────────────────────────────────────────────
+     SPAWN TERMINAL (ONCE — NEVER RECREATED)
+     ───────────────────────────────────────────── */
+  const spawnTerminal = async (shell: string | null) => {
+    const [id, resolvedShell] = await invoke<[string, string]>(
+      "terminal_spawn",
+      {
+        shell,
+        cwd: workspaceRoot ?? undefined,
       }
-    });
+    );
 
-    return unsubscribe;
-  }, []);
-
-  /* ───────────── SPAWN & SETUP ───────────── */
-  useEffect(() => {
-    console.log("[TERMINAL][DEBUG] Mounting for workspace:", workspaceId);
-
-    if (!workspaceId || !containerRef.current) return;
-
-    if (!termRef.current) {
-      const term = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'block',
-        fontFamily: 'monospace',
-        fontSize: 14,
-        lineHeight: 1.2,
-        theme: {
-          background: '#1e1e1e',
-          foreground: '#cccccc',
-        },
-      });
-      const fit = new FitAddon();
-      term.loadAddon(fit);
-      term.open(containerRef.current);
-      fit.fit();
-
-      console.log("[TERMINAL][DEBUG] Created xterm instance");
-
-      termRef.current = term;
-      fitRef.current = fit;
-
-      term.onData((data) => {
-        const target = activeIdRef.current || terminalIdRef.current;
-        console.log("[INPUT DEBUG] Typed:", JSON.stringify(data), "→ to:", target);
-        if (target) {
-          invoke("terminal_write", { id: target, data });
-        } else {
-          console.warn("[INPUT DEBUG] NO TARGET - keystroke dropped");
-        }
-      });
-    }
-
-    if (didSetupRef.current) {
-      console.log("[TERMINAL][SKIP] Already setup");
+    if (TERMINAL_REGISTRY[id]) {
+      console.warn("⚠️ Terminal already exists:", id);
+      setActiveTerminal(id);
       return;
     }
 
-    didSetupRef.current = true;
+    console.log("🟢 Spawning terminal:", id);
 
-    (async () => {
-      console.log("[TERMINAL][DEBUG] First-time setup");
+    const term = new Terminal({
+      cursorBlink: true,
+      cursorStyle: "block",
+      fontFamily: "monospace",
+      fontSize: 14,
+      lineHeight: 1.2,
+      theme: { background: "#1e1e1e", foreground: "#cccccc" },
+    });
 
-      const existing = terminals.find(t => t.workspaceId === workspaceId);
+    const fit = new FitAddon();
+    term.loadAddon(fit);
 
-      let id: string;
-      let shell: string;
-
-      if (existing) {
-        id = existing.id;
-        shell = existing.shell;
-        console.log("[TERMINAL][REUSE] Using:", id);
-      } else {
-        [id, shell] = await invoke<[string, string]>("terminal_spawn", {
-          shell: null,
-          cwd: workspaceRoot ?? undefined,
-        });
-        addTerminal({ id, shell, workspaceId: workspaceId!, active: true });
-        console.log("[TERMINAL][SPAWN] New:", id);
+    const unlisten = await listen<[string, string]>(
+      "terminal-output",
+      (e) => {
+        if (e.payload[0] !== id) return;
+        TERMINAL_REGISTRY[id]?.term.write(e.payload[1]);
       }
+    );
 
-      terminalIdRef.current = id;
-      activeIdRef.current = id;
-      setActiveTerminal(id);
+    TERMINAL_REGISTRY[id] = { term, fit, unlisten };
 
-      console.log("[TERMINAL][DEBUG] IDs synced:", { terminalIdRef: terminalIdRef.current, activeRef: activeIdRef.current });
+    addTerminal({
+      id,
+      shell: resolvedShell,
+      workspaceId: workspaceId ?? `blank-${Date.now()}`,
+      active: true,
+    });
 
-      const unlisten = await listen<[string, string]>("terminal-output", (e) => {
-        const [outId, output] = e.payload;
-        const current = activeIdRef.current || terminalIdRef.current;
-        console.log("[OUTPUT DEBUG] From:", outId, "active:", current);
-        if (outId === current && termRef.current) {
-          termRef.current.write(output);
-          console.log("[OUTPUT DEBUG] Written");
-        } else {
-          console.log("[OUTPUT DEBUG] Ignored");
-        }
+    setActiveTerminal(id);
+
+    await invoke("terminal_ready", { id });
+
+    term.onData((data) => {
+      invoke("terminal_write", { id, data });
+    });
+  };
+
+  /* ─────────────────────────────────────────────
+     ATTACH ACTIVE TERMINAL (ON REMOUNT / TOGGLE)
+     ───────────────────────────────────────────── */
+  useEffect(() => {
+    const id = activeTerminalId;
+    if (!id || !containerRef.current) return;
+
+    const instance = TERMINAL_REGISTRY[id];
+    if (!instance) {
+      console.warn("❌ No terminal instance found for:", id);
+      return;
+    }
+
+    console.log("🔗 Attaching terminal to DOM:", id);
+
+    containerRef.current.innerHTML = "";
+    instance.term.open(containerRef.current);
+
+    requestAnimationFrame(() => {
+      instance.fit.fit();
+      invoke("terminal_resize", {
+        id,
+        rows: instance.term.rows,
+        cols: instance.term.cols,
       });
+      invoke("terminal_redraw", { id });
+    });
+  }, [activeTerminalId, terminals.length, isMaximized]);
 
-      return () => {
-        console.log("[TERMINAL][UNMOUNT] Cleanup");
-        unlisten();
-        if (termRef.current) {
-          termRef.current.dispose();
-          termRef.current = null;
-          fitRef.current = null;
-        }
-      };
-    })();
-  }, [workspaceId, workspaceRoot]);
-
-  // Refit & resize on active change
+  /* ─────────────────────────────────────────────
+     RESIZE OBSERVER
+     ───────────────────────────────────────────── */
   useEffect(() => {
-    if (!activeTerminalId || !termRef.current || !fitRef.current) return;
-
-    console.log("[REFIT DEBUG] Active switch to:", activeTerminalId);
-    activeIdRef.current = activeTerminalId;
-
-    fitRef.current.fit();
-    invoke("terminal_resize", {
-      id: activeTerminalId,
-      rows: termRef.current.rows,
-      cols: termRef.current.cols,
-    }).catch(console.error);
-
-    termRef.current.write('\r');
-  }, [activeTerminalId, forceUpdateRef.current]);
-
-  // Container resize observer
-  useEffect(() => {
-    if (!containerRef.current || !fitRef.current) return;
+    if (!containerRef.current) return;
 
     const resize = () => {
-      console.log("[RESIZE DEBUG] Container resize");
-      fitRef.current!.fit();
-      const target = activeIdRef.current || terminalIdRef.current;
-      if (target && termRef.current) {
+      const id = activeTerminalId;
+      if (!id) return;
+
+      const instance = TERMINAL_REGISTRY[id];
+      if (!instance) return;
+
+      requestAnimationFrame(() => {
+        instance.fit.fit();
         invoke("terminal_resize", {
-          id: target,
-          rows: termRef.current.rows,
-          cols: termRef.current.cols,
-        }).catch(console.error);
-      }
+          id,
+          rows: instance.term.rows,
+          cols: instance.term.cols,
+        });
+      });
     };
 
-    resize();
     const observer = new ResizeObserver(resize);
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, []);
+  }, [activeTerminalId]);
 
-  const spawnTerminal = async (shell: string | null) => {
-    console.log("[SPAWN DEBUG] Starting spawn with shell:", shell);
-    const currentRoot = workspaceRoot ?? undefined;
+  /* ─────────────────────────────────────────────
+     CLOSE TERMINAL FOR REAL
+     ───────────────────────────────────────────── */
+  const closeTerminalSafe = (id: string) => {
+    const instance = TERMINAL_REGISTRY[id];
 
-    const [id, resolvedShell] = await invoke<[string, string]>("terminal_spawn", {
-      shell,
-      cwd: currentRoot,
-    });
+    if (instance) {
+      console.log("🧹 Disposing terminal:", id);
+      instance.term.dispose();
+      if (instance.unlisten) instance.unlisten();
+      delete TERMINAL_REGISTRY[id];
+    }
 
-    const fallbackWsId = workspaceId ?? `blank-${Date.now()}`;
-
-    useEditorStore.getState().addTerminal({
-      id,
-      shell: resolvedShell,
-      workspaceId: fallbackWsId,
-      active: true,
-    });
-
-    useEditorStore.getState().setActiveTerminal(id);
-    console.log("[SPAWN DEBUG] Spawn complete - set active:", id);
+    closeTerminal(id);
   };
 
+  /* ─────────────────────────────────────────────
+     EMPTY STATE
+     ───────────────────────────────────────────── */
+  if (terminals.length === 0) {
+    return (
+      <div className="flex flex-col w-full h-full bg-default border-t border-default">
+        <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
+          <div className="flex gap-3 text-xs text-muted">
+            {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(
+              (v) => (
+                <button
+                  key={v}
+                  className={v === "TERMINAL" ? "text-default font-medium" : ""}
+                >
+                  {v}
+                </button>
+              )
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-muted">
+            <TerminalSettings onSpawn={spawnTerminal} />
+            <button onClick={toggleTerminalPanel}>✕</button>
+          </div>
+        </div>
+        <div className="flex-1 bg-black flex items-center justify-center text-muted">
+          No terminals open. Click + to create one.
+        </div>
+      </div>
+    );
+  }
+
+  /* ─────────────────────────────────────────────
+     MAIN RENDER
+     ───────────────────────────────────────────── */
   return (
-    <div className={`flex flex-col w-full h-full bg-default border-t border-default ${
-        isMaximized ? 'fixed top-0 left-0 w-full h-full z-50' : ''
-    }`}>
+    <div
+      className={`flex flex-col w-full h-full bg-default border-t border-default ${
+        isMaximized ? "fixed top-0 left-0 w-full h-full z-50" : ""
+      }`}
+    >
       <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
         <div className="flex gap-3 text-xs text-muted">
-          {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(v => (
-            <button key={v} className={v === "TERMINAL" ? "text-default font-medium" : ""}>
-              {v}
-            </button>
-          ))}
+          {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(
+            (v) => (
+              <button
+                key={v}
+                className={v === "TERMINAL" ? "text-default font-medium" : ""}
+              >
+                {v}
+              </button>
+            )
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-muted">
           <TerminalSettings onSpawn={spawnTerminal} />
-          <button onClick={() => setIsMaximized(prev => !prev)}>
-            {isMaximized ? '🗗' : '▢'}
+          <button onClick={() => setIsMaximized((v) => !v)}>
+            {isMaximized ? "🗗" : "▢"}
           </button>
           <button onClick={toggleTerminalPanel}>✕</button>
         </div>
@@ -234,38 +256,25 @@ export default function TerminalPanel({
       <div className="flex flex-1 overflow-hidden">
         <div ref={containerRef} className="flex-1 bg-black" />
 
-        <div className="w-40 border-l border-default bg-muted text-xs">
-          {terminals.map(t => (
+        <div className="w-40 border-l border-default bg-muted text-xs overflow-y-auto">
+          {terminals.map((t) => (
             <div
               key={t.id}
-              className={`flex justify-between items-center px-3 h-10 cursor-pointer relative group ${
-                t.id === activeTerminalId ? "bg-default text-default" : ""
+              className={`flex justify-between items-center px-3 h-10 cursor-pointer group ${
+                t.id === activeTerminalId
+                  ? "bg-default text-foreground border-l-4 border-l-foreground font-medium"
+                  : "text-default hover:bg-neutral-500"
               }`}
+              onClick={() => setActiveTerminal(t.id)}
             >
-              <span
-                onClick={() => {
-                  console.log(
-                    "[TAB CLICK DEBUG] Click:", t.id, "shell:", t.shell,
-                    "old active:", activeTerminalId
-                  );
-                  setActiveTerminal(t.id);
-                  activeIdRef.current = t.id; // IMMEDIATE sync (bypass batching)
-                  forceUpdateRef.current += 1; // Force re-render to trigger effects
-                }}
-              >
-                {t.shell}
-              </span>
-
+              <span className="flex-1 truncate">{t.shell}</span>
               <button
-                className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-lg"
-                onClick={() => {
-                  if (t.id) {
-                    console.log("[KILL DEBUG] Killing:", t.id);
-                    invoke("terminal_kill", { id: t.id }).catch(console.error);
-                  }
-                  closeTerminal(t.id);
+                className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 text-lg"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  invoke("terminal_kill", { id: t.id }).catch(() => {});
+                  closeTerminalSafe(t.id);
                 }}
-                title="Close"
               >
                 🗑️
               </button>

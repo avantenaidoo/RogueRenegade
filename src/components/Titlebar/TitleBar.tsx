@@ -70,12 +70,19 @@ export default function TitleBar({ onToggleDashboard }: TitleBarProps) {
 
         <MenuBar />
         <button
-            data-tauri-drag-region={false}
-            className="text-xs px-2 py-1 rounded hover:bg-neutral-500/20"
-            onClick={onToggleDashboard}
-          >
-            Dashboard
+          data-tauri-drag-region={false}
+          onClick={onToggleDashboard}
+          className="
+            text-xs
+            h-7
+            px-2
+            flex items-center
+            hover:bg-neutral-500
+          "
+        >
+          Dashboard
         </button>
+
 
       </div>
 

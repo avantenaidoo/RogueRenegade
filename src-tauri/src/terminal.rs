@@ -6,7 +6,7 @@ use portable_pty::{
     MasterPty,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     io::{Read, Write},
     sync::{Arc, Mutex},
     thread,
@@ -16,10 +16,19 @@ use uuid::Uuid;
 
 type Writer = Box<dyn Write + Send>;
 
+//
+// ─────────────────────────────────────────────
+// Terminal Structs
+// ─────────────────────────────────────────────
+//
+
 pub struct Terminal {
     pub writer: Writer,
     pub master: Box<dyn MasterPty + Send>,
+    pub buffer: VecDeque<String>,
+    pub is_ready: bool,
 }
+
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub struct TerminalMeta {
@@ -28,16 +37,23 @@ pub struct TerminalMeta {
     pub cwd: Option<String>,
 }
 
-
-
+//
+// ─────────────────────────────────────────────
+// Global State
+// ─────────────────────────────────────────────
+//
 
 static TERMINALS: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, Terminal>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-static TERMINAL_META: once_cell::sync::Lazy<
-    Arc<Mutex<HashMap<String, TerminalMeta>>>
-> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+static TERMINAL_META: once_cell::sync::Lazy<Arc<Mutex<HashMap<String, TerminalMeta>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
+//
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+//
 
 fn system_home_dir() -> Option<String> {
     std::env::var("HOME")
@@ -45,34 +61,33 @@ fn system_home_dir() -> Option<String> {
         .ok()
 }
 
-/// Spawn the **OS-declared default shell**
-/// - Windows: %ComSpec% (usually cmd.exe)
-/// - macOS/Linux: $SHELL, fallback to /bin/sh
-
-
 fn resolve_shell(shell: Option<String>) -> (String, CommandBuilder) {
     if let Some(s) = shell {
-        // User-defined shell
         let name = s.clone();
         (name.clone(), CommandBuilder::new(s))
     } else if cfg!(target_os = "windows") {
-        // Windows: try PowerShell, fallback to cmd
         let powershell_path = std::env::var("WINDIR")
             .map(|w| format!("{}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", w))
             .unwrap_or_else(|_| "powershell.exe".into());
+
         let shell = if std::path::Path::new(&powershell_path).exists() {
             powershell_path
         } else {
             std::env::var("ComSpec").unwrap_or("cmd.exe".into())
         };
+
         ("powershell".into(), CommandBuilder::new(shell))
     } else {
-        // Linux / macOS
         let shell = std::env::var("SHELL").unwrap_or("/bin/bash".into());
         ("bash".into(), CommandBuilder::new(shell))
     }
 }
 
+//
+// ─────────────────────────────────────────────
+// Spawn Terminal
+// ─────────────────────────────────────────────
+//
 
 #[tauri::command]
 pub fn terminal_spawn(
@@ -80,9 +95,8 @@ pub fn terminal_spawn(
     shell: Option<String>,
     cwd: Option<String>,
 ) -> Result<(String, String), String> {
-    let cwd_dbg = cwd.clone();
-
     let pty_system = NativePtySystem::default();
+
     let pair = pty_system
         .openpty(PtySize {
             rows: 24,
@@ -92,18 +106,20 @@ pub fn terminal_spawn(
         })
         .map_err(|e| e.to_string())?;
 
-        let (shell_name, mut cmd) = resolve_shell(shell);
+    let (shell_name, mut cmd) = resolve_shell(shell);
 
-        if let Some(dir) = cwd.clone().or_else(system_home_dir) {
-            cmd.cwd(dir);
-        }
+    if let Some(dir) = cwd.clone().or_else(system_home_dir) {
+        cmd.cwd(dir);
+    }
 
+    // MUST be mutable — wait() requires &mut self
+    let mut child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| e.to_string())?;
 
-    let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-
-    let master = pair.master;
-    let writer = master.take_writer().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     let id = Uuid::new_v4().to_string();
 
@@ -111,7 +127,9 @@ pub fn terminal_spawn(
         id.clone(),
         Terminal {
             writer,
-            master,
+            master: pair.master,
+            buffer: VecDeque::new(),
+            is_ready: false,
         },
     );
 
@@ -124,60 +142,70 @@ pub fn terminal_spawn(
         },
     );
 
-
     let app_clone = app.clone();
     let id_clone = id.clone();
 
+    //
+    // Reader thread
+    //
     thread::spawn(move || {
-        let mut buf = [0u8; 4096];
-        while let Ok(n) = reader.read(&mut buf) {
-            if n == 0 {
-                break;
-            }
+        let mut buf = [0u8; 8192];
 
-            let output = String::from_utf8_lossy(&buf[..n]).to_string();
-            let _ = app_clone.emit("terminal-output", (id_clone.clone(), output));
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let output = String::from_utf8_lossy(&buf[..n]).to_string();
+
+                    let mut terminals = TERMINALS.lock().unwrap();
+                    if let Some(term) = terminals.get_mut(&id_clone) {
+                        if term.is_ready {
+                            let _ = app_clone.emit("terminal-output", (id_clone.clone(), output));
+                        } else {
+                            term.buffer.push_back(output);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
         }
+
+        // Wait on child to avoid zombies
         let _ = child.wait();
     });
-
-    println!("[TERMINAL][BE] spawned id={} cwd={:?}", id, cwd_dbg);
 
     Ok((id, shell_name))
 }
 
-
-#[tauri::command]
-#[allow(dead_code)]
-pub fn terminal_meta(id: String) -> Result<TerminalMeta, String> {
-    TERMINAL_META
-        .lock()
-        .unwrap()
-        .get(&id)
-        .cloned()
-        .ok_or("Terminal meta not found".to_string())
-}
-
+//
+// ─────────────────────────────────────────────
+// Write to Terminal
+// ─────────────────────────────────────────────
+//
 
 #[tauri::command]
 pub fn terminal_write(id: String, data: String) -> Result<(), String> {
-    let mut terms = TERMINALS.lock().unwrap();
-    let term = terms.get_mut(&id).ok_or("Terminal not found")?;
+    let mut terminals = TERMINALS.lock().unwrap();
+    let term = terminals.get_mut(&id).ok_or("Terminal not found")?;
     term.writer
         .write_all(data.as_bytes())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    term.writer.flush().ok();
+    Ok(())
 }
 
-#[tauri::command]
-pub fn terminal_kill(id: String) {
-    TERMINALS.lock().unwrap().remove(&id);
-    TERMINAL_META.lock().unwrap().remove(&id);
-}
+//
+// ─────────────────────────────────────────────
+// Resize Terminal
+// ─────────────────────────────────────────────
+//
 
 #[tauri::command]
 pub fn terminal_resize(id: String, rows: u16, cols: u16) -> Result<(), String> {
-    let terms = TERMINALS.lock().unwrap();
-    let term = terms.get(&id).ok_or("Terminal not found")?;
+    let terminals = TERMINALS.lock().unwrap();
+    let term = terminals.get(&id).ok_or("Terminal not found")?;
 
     term.master
         .resize(PtySize {
@@ -187,4 +215,48 @@ pub fn terminal_resize(id: String, rows: u16, cols: u16) -> Result<(), String> {
             pixel_height: 0,
         })
         .map_err(|e| e.to_string())
+}
+
+//
+// ─────────────────────────────────────────────
+// Frontend Ready → Flush Buffer
+// ─────────────────────────────────────────────
+//
+
+#[tauri::command]
+pub fn terminal_ready(app: AppHandle, id: String) -> Result<(), String> {
+    let mut terminals = TERMINALS.lock().unwrap();
+    let term = terminals.get_mut(&id).ok_or("Terminal not found")?;
+
+    term.is_ready = true;
+
+    while let Some(chunk) = term.buffer.pop_front() {
+        let _ = app.emit("terminal-output", (id.clone(), chunk));
+    }
+
+    Ok(())
+}
+
+//
+// ─────────────────────────────────────────────
+// Kill Terminal
+// ─────────────────────────────────────────────
+//
+
+#[tauri::command]
+pub fn terminal_kill(id: String) -> Result<(), String> {
+    let mut terminals = TERMINALS.lock().unwrap();
+
+    if let Some(term) = terminals.remove(&id) {
+        drop(term.master); // closing PTY kills process
+    }
+
+    TERMINAL_META.lock().unwrap().remove(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn terminal_redraw(_id: String) -> Result<(), String> {
+    // Frontend redraw placeholder — nothing actually needed here
+    Ok(())
 }
