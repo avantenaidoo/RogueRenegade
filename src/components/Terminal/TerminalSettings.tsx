@@ -83,6 +83,7 @@ export default function TerminalSettings({ onSpawn }: TerminalSettingsProps) {
         overflow-hidden origin-${isDropUp ? "bottom" : "top"}
         transition-opacity duration-100
       `}
+      onMouseLeave={() => setOpen(false)}
     >
       {SHELL_OPTIONS.map((opt) => (
         <button
