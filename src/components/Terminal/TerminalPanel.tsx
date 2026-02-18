@@ -61,7 +61,7 @@ export default function TerminalPanel({
   /* ─────────────────────────────────────────────
      SPAWN TERMINAL (ONCE — NEVER RECREATED)
      ───────────────────────────────────────────── */
-  const spawnTerminal = async (shell: string | null) => {
+  const spawnTerminal = async (shell: string | null, label: string) => {
     const [id, resolvedShell] = await invoke<[string, string]>(
       "terminal_spawn",
       {
@@ -103,6 +103,7 @@ export default function TerminalPanel({
     addTerminal({
       id,
       shell: resolvedShell,
+      label,
       workspaceId: workspaceId ?? `blank-${Date.now()}`,
       active: true,
     });
@@ -267,7 +268,7 @@ export default function TerminalPanel({
               }`}
               onClick={() => setActiveTerminal(t.id)}
             >
-              <span className="flex-1 truncate">{t.shell}</span>
+              <span className="flex-1 truncate">{t.label ?? t.shell}</span>
               <button
                 className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 text-lg"
                 onClick={(e) => {

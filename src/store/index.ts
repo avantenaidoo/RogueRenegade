@@ -63,6 +63,7 @@ export interface TerminalTab {
   shell: string;
   workspaceId: string;
   active: boolean;
+  label?: string; 
 }
 
 
