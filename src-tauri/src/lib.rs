@@ -794,6 +794,7 @@ pub fn run() {
             save_session,
             terminal::terminal_ready,
             terminal::terminal_redraw,
+            terminal::terminal_list,
         ])
         .setup(|app| {
 

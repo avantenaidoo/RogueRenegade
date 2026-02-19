@@ -16,6 +16,8 @@ use uuid::Uuid;
 
 type Writer = Box<dyn Write + Send>;
 
+use serde::Serialize;
+
 //
 // ─────────────────────────────────────────────
 // Terminal Structs
@@ -29,7 +31,7 @@ pub struct Terminal {
     pub is_ready: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 #[allow(dead_code)]
 pub struct TerminalMeta {
     pub id: String,
@@ -259,4 +261,17 @@ pub fn terminal_kill(id: String) -> Result<(), String> {
 pub fn terminal_redraw(_id: String) -> Result<(), String> {
     // Frontend redraw placeholder — nothing actually needed here
     Ok(())
+}
+
+//
+// ─────────────────────────────────────────────
+// List Live Terminals
+// ─────────────────────────────────────────────
+//
+
+#[tauri::command]
+pub fn terminal_list() -> Result<Vec<TerminalMeta>, String> {
+    let meta = TERMINAL_META.lock().unwrap();
+
+    Ok(meta.values().cloned().collect())
 }

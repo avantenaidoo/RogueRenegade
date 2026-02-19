@@ -7,19 +7,14 @@ import "xterm/css/xterm.css";
 import { useEditorStore } from "../../store";
 import TerminalSettings from "./TerminalSettings";
 
-/* ─────────────────────────────────────────────
-   🔒 GLOBAL TERMINAL REGISTRY (SURVIVES UNMOUNT)
-   ───────────────────────────────────────────── */
-
 type TerminalInstance = {
   term: Terminal;
   fit: FitAddon;
   unlisten: UnlistenFn | null;
+  dataHandlerSet: boolean;
 };
 
 const TERMINAL_REGISTRY: Record<string, TerminalInstance> = {};
-
-/* ───────────────────────────────────────────── */
 
 export default function TerminalPanel({
   workspaceId,
@@ -40,16 +35,21 @@ export default function TerminalPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  /* ─────────────────────────────────────────────
-     SPAWN OR RESTORE TERMINAL
-     ───────────────────────────────────────────── */
-  const spawnTerminal = async (shell: string | null, label: string, id?: string) => {
+  const spawnTerminal = async (
+    shell: string | null,
+    label: string,
+    id?: string
+  ) => {
     const [terminalId, resolvedShell] = id
       ? [id, shell ?? "bash"]
-      : await invoke<[string, string]>("terminal_spawn", { shell, cwd: workspaceRoot ?? undefined });
+      : await invoke<[string, string]>("terminal_spawn", {
+          shell,
+          cwd: workspaceRoot ?? undefined,
+        });
 
     if (TERMINAL_REGISTRY[terminalId]) {
       setActiveTerminal(terminalId);
+      await invoke("terminal_ready", { id: terminalId });
       return;
     }
 
@@ -65,35 +65,34 @@ export default function TerminalPanel({
     const fit = new FitAddon();
     term.loadAddon(fit);
 
+    // Debug: key presses inside terminal
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "c") {
-        const selection = term.getSelection();
-        if (selection.length > 0) {
-          navigator.clipboard.writeText(selection).catch(() => {});
-        } else {
-          invoke("terminal_write", { id: terminalId, data: "\x03" }).catch(() => {});
-        }
-        return false;
-      }
-if (e.ctrlKey && e.key.toLowerCase() === "v") {
-  e.preventDefault();
-  e.stopImmediatePropagation();
-
-  navigator.clipboard.readText()
-    .then(text => term.paste(text))
-    .catch(() => {});
-
-  return false;
-}
-      return true;
+      console.debug(
+        `[DEBUG-KEY] key=${e.key} ctrl=${e.ctrlKey} alt=${e.altKey} shift=${e.shiftKey}`
+      );
+      return true; // allow all keys
     });
 
-    const unlisten = await listen<[string, string]>("terminal-output", (e) => {
-      if (e.payload[0] !== terminalId) return;
-      TERMINAL_REGISTRY[terminalId]?.term.write(e.payload[1]);
-    });
+    // Add to registry before attaching onData/listeners
+    TERMINAL_REGISTRY[terminalId] = { term, fit, unlisten: null, dataHandlerSet: false };
 
-    TERMINAL_REGISTRY[terminalId] = { term, fit, unlisten };
+    // Attach onData only once
+    if (!TERMINAL_REGISTRY[terminalId].dataHandlerSet) {
+      term.onData((data) => {
+        console.debug(`[DEBUG-BODY] onData fired: "${data}"`);
+        invoke("terminal_write", { id: terminalId, data });
+      });
+      TERMINAL_REGISTRY[terminalId].dataHandlerSet = true;
+    }
+
+    // Listen for terminal output once
+    if (!TERMINAL_REGISTRY[terminalId].unlisten) {
+      const unlisten = await listen<[string, string]>("terminal-output", (e) => {
+        if (e.payload[0] !== terminalId) return;
+        TERMINAL_REGISTRY[terminalId]?.term.write(e.payload[1]);
+      });
+      TERMINAL_REGISTRY[terminalId].unlisten = unlisten;
+    }
 
     if (!id) {
       addTerminal({
@@ -106,25 +105,19 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
     }
 
     setActiveTerminal(terminalId);
-    if (!id) await invoke("terminal_ready", { id: terminalId });
-
-    term.onData((data) => {
-      invoke("terminal_write", { id: terminalId, data });
-    });
+    await invoke("terminal_ready", { id: terminalId });
   };
 
-  /* ─────────────────────────────────────────────
-     ATTACH ACTIVE TERMINAL
-     ───────────────────────────────────────────── */
+  // Attach active terminal to DOM
   useEffect(() => {
     const attach = async () => {
       if (!containerRef.current || !activeTerminalId) return;
 
       let instance = TERMINAL_REGISTRY[activeTerminalId];
 
+      // Spawn if missing
       if (!instance) {
-        // terminal disappeared in registry -> restore from store
-        const t = terminals.find(t => t.id === activeTerminalId);
+        const t = terminals.find((t) => t.id === activeTerminalId);
         if (t) {
           await spawnTerminal(t.shell, t.label ?? "Terminal", t.id);
           instance = TERMINAL_REGISTRY[activeTerminalId];
@@ -138,6 +131,7 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
 
       requestAnimationFrame(() => {
         instance.fit.fit();
+        instance.term.focus();
         invoke("terminal_resize", {
           id: activeTerminalId,
           rows: instance.term.rows,
@@ -150,24 +144,22 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
     attach();
   }, [activeTerminalId, terminals.length, isMaximized]);
 
-  /* ─────────────────────────────────────────────
-     RESTORE ALL TERMINALS ON FIRST LOAD
-     ───────────────────────────────────────────── */
+  // Restore live terminals on mount
   useEffect(() => {
     const restore = async () => {
-      const liveTerminals: { id: string; shell: string; label: string }[] = await invoke("terminal_list");
+      const liveTerminals: { id: string; shell: string }[] =
+        await invoke("terminal_list");
+
       for (const t of liveTerminals) {
         if (!TERMINAL_REGISTRY[t.id]) {
-          await spawnTerminal(t.shell, t.label, t.id);
+          await spawnTerminal(t.shell, t.shell, t.id);
         }
       }
     };
     restore();
   }, []);
 
-  /* ─────────────────────────────────────────────
-     RESIZE OBSERVER
-     ───────────────────────────────────────────── */
+  // Resize observer
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -190,35 +182,26 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
 
     const observer = new ResizeObserver(resize);
     observer.observe(containerRef.current);
-
     return () => observer.disconnect();
   }, [activeTerminalId]);
 
-  /* ─────────────────────────────────────────────
-     CLOSE TERMINAL
-     ───────────────────────────────────────────── */
+  // Close terminal safely
   const closeTerminalSafe = (id: string) => {
     const instance = TERMINAL_REGISTRY[id];
     if (instance) {
       instance.term.dispose();
-      if (instance.unlisten) instance.unlisten();
+      instance.unlisten?.();
       delete TERMINAL_REGISTRY[id];
     }
+    invoke("terminal_kill", { id }).catch(() => {});
     closeTerminal(id);
   };
 
-  /* ─────────────────────────────────────────────
-     EMPTY STATE
-     ───────────────────────────────────────────── */
   if (terminals.length === 0) {
     return (
       <div className="flex flex-col w-full h-full bg-default border-t border-default">
         <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
-          <div className="flex gap-3 text-xs text-muted">
-            {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(v => (
-              <button key={v} className={v === "TERMINAL" ? "text-default font-medium" : ""}>{v}</button>
-            ))}
-          </div>
+          <div className="text-xs text-muted">TERMINAL</div>
           <div className="flex items-center gap-2 text-muted">
             <TerminalSettings onSpawn={spawnTerminal} />
             <button onClick={toggleTerminalPanel}>✕</button>
@@ -231,21 +214,20 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
     );
   }
 
-  /* ─────────────────────────────────────────────
-     MAIN RENDER
-     ───────────────────────────────────────────── */
   return (
-    <div className={`flex flex-col w-full h-full bg-default border-t border-default ${isMaximized ? "fixed top-0 left-0 w-full h-full z-50" : ""}`}>
+    <div
+      className={`flex flex-col w-full h-full bg-default border-t border-default ${
+        isMaximized ? "fixed top-0 left-0 w-full h-full z-50" : ""
+      }`}
+    >
       <div className="flex items-center justify-between px-2 h-9 bg-muted border-b border-default">
-        <div className="flex gap-3 text-xs text-muted">
-          {["PROBLEMS", "OUTPUT", "DEBUG CONSOLE", "PORTS", "TERMINAL"].map(v => (
-            <button key={v} className={v === "TERMINAL" ? "text-default font-medium" : ""}>{v}</button>
-          ))}
-        </div>
+        <div className="text-xs text-muted">TERMINAL</div>
 
         <div className="flex items-center gap-2 text-muted">
           <TerminalSettings onSpawn={spawnTerminal} />
-          <button onClick={() => setIsMaximized(v => !v)}>{isMaximized ? "🗗" : "▢"}</button>
+          <button onClick={() => setIsMaximized((v) => !v)}>
+            {isMaximized ? "🗗" : "▢"}
+          </button>
           <button onClick={toggleTerminalPanel}>✕</button>
         </div>
       </div>
@@ -254,10 +236,27 @@ if (e.ctrlKey && e.key.toLowerCase() === "v") {
         <div ref={containerRef} className="flex-1 bg-black" />
 
         <div className="w-40 border-l border-default bg-muted text-xs overflow-y-auto">
-          {terminals.map(t => (
-            <div key={t.id} className={`flex justify-between items-center px-3 h-10 cursor-pointer group ${t.id === activeTerminalId ? "bg-default text-foreground border-l-4 border-l-foreground font-medium" : "text-default hover:bg-neutral-500"}`} onClick={() => setActiveTerminal(t.id)}>
+          {terminals.map((t) => (
+            <div
+              key={t.id}
+              className={`flex justify-between items-center px-3 h-10 cursor-pointer group ${
+                t.id === activeTerminalId
+                  ? "bg-default text-foreground border-l-4 border-l-foreground font-medium"
+                  : "text-default hover:bg-neutral-500"
+              }`}
+              onClick={() => setActiveTerminal(t.id)}
+            >
               <span className="flex-1 truncate">{t.label ?? t.shell}</span>
-              <button className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 text-lg" onClick={(e) => { e.stopPropagation(); invoke("terminal_kill", { id: t.id }).catch(() => {}); closeTerminalSafe(t.id); }}>🗑️</button>
+
+              <button
+                className="ml-2 text-red-500 opacity-0 group-hover:opacity-100 text-lg"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTerminalSafe(t.id);
+                }}
+              >
+                🗑️
+              </button>
             </div>
           ))}
         </div>
