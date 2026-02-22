@@ -29,7 +29,8 @@ export default function Workspace({
     setRepoPath,
     addRecentFolder,
     updateTab,
-    setActiveTab
+    setActiveTab,
+    loadWorkspaces,
   } = useEditorStore();
 
   const [_theme, setTheme] = useState<"vs-dark" | "vs-light">("vs-dark");
@@ -161,17 +162,14 @@ export default function Workspace({
       window.history.replaceState({}, "", url.toString());
 
       console.log("🧹 BLANK FLAG CLEARED — future reloads will restore session");
-    }
-  }, []);
-   
-  useEffect(() => {
-    if (isInitialBlankWindow) {
-      console.log("🆕 INITIAL BLANK WINDOW — skipping FIRST restore only");
       return;
     }
 
     (async () => {
       console.log("🔁 REQUESTING LAST SESSION FROM RUST");
+
+      // Load workspaces first
+      await loadWorkspaces();
 
       const session = await invoke<{
         last_workspace: string | null;
@@ -182,7 +180,6 @@ export default function Workspace({
           cursor: { lineNumber: number; column: number };
         }[];
       }>("get_last_session");
-
 
       console.log("📥 SESSION RECEIVED FROM RUST", session);
 
@@ -196,7 +193,6 @@ export default function Workspace({
         return;
       }
 
-
       if (session.last_workspace) {
         await invoke("allow_workspace_dir", {
           path: session.last_workspace
@@ -204,6 +200,23 @@ export default function Workspace({
 
         setRepoPath(session.last_workspace);
         addRecentFolder(session.last_workspace);
+
+        // FIX: Update root_path in workspaces array for active workspace
+        const currentState = useEditorStore.getState();
+        const activeId = currentState.focusedWorkspaceId;
+        if (activeId && session.last_workspace !== null) {  // null check here
+          const activeIndex = currentState.workspaces.findIndex(w => w.id === activeId);
+          if (activeIndex !== -1 && currentState.workspaces[activeIndex].root_path !== session.last_workspace) {
+            useEditorStore.setState(prev => {
+              const newWorkspaces = [...prev.workspaces];
+              newWorkspaces[activeIndex] = {
+                ...newWorkspaces[activeIndex],
+                root_path: session.last_workspace as string  // Type assertion safe after null check
+              };
+              return { workspaces: newWorkspaces };
+            });
+          }
+        }
       }
 
       for (const path of session.open_files) {
@@ -233,10 +246,9 @@ export default function Workspace({
         setActiveTab(0);
       }
 
-
       console.log("✅ FINAL STATE AFTER RESTORE", useEditorStore.getState());
     })();
-  }, [setRepoPath, addRecentFolder, updateTab, setActiveTab]);
+  }, [setRepoPath, addRecentFolder, updateTab, setActiveTab, loadWorkspaces]);
 
   return <Canvas
             onSwitchAccount={onSwitchAccount}

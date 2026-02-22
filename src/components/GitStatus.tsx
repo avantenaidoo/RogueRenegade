@@ -1,7 +1,5 @@
-// src/components/GitStatus.tsx
 import { useEffect, useState } from "react";
-import { exists } from "@tauri-apps/plugin-fs";
-import { getCurrentBranch, getUncommittedFiles } from "../utils/git";
+import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore } from "../store";
 
 export default function GitStatus() {
@@ -10,46 +8,44 @@ export default function GitStatus() {
 
   const [branch, setBranch] = useState<string | null>(null);
   const [gitDirtyFiles, setGitDirtyFiles] = useState<string[]>([]);
-
-  function dirname(path: string) {
-    return path.split("/").slice(0, -1).join("/");
-  }
+  const [isGitRepo, setIsGitRepo] = useState(false);
 
   function basename(path: string) {
-    return path.split("/").pop() ?? path;
+    return path.split(/[\\/]/).pop() ?? path;
   }
 
-  async function isGitRepo(path: string) {
-    try {
-      return await exists(`${path}/.git`);
-    } catch {
-      return false;
-    }
-  }
-
-  async function updateStatus() {
+  const updateStatus = async () => {
     if (!activeTab) {
       setBranch(null);
       setGitDirtyFiles([]);
+      setIsGitRepo(false);
       return;
     }
 
-    const repoPath = dirname(activeTab.path);
-
-    if (!(await isGitRepo(repoPath))) {
-      setBranch(null);
-      setGitDirtyFiles([]);
-      return;
-    }
+    const repoPath = activeTab.path.split(/[\\/]/).slice(0, -1).join("/");
 
     try {
-      setBranch(await getCurrentBranch(repoPath));
-      setGitDirtyFiles(await getUncommittedFiles(repoPath));
-    } catch {
+      const repo = await invoke<boolean>("git_is_repo", { repoPath });
+      setIsGitRepo(repo);
+
+      if (!repo) {
+        setBranch(null);
+        setGitDirtyFiles([]);
+        return;
+      }
+
+      const currentBranch = await invoke<string>("git_get_current_branch", { repoPath });
+      const uncommitted = await invoke<string[]>("git_get_uncommitted_files", { repoPath });
+
+      setBranch(currentBranch);
+      setGitDirtyFiles(uncommitted);
+    } catch (err) {
+      console.error("GitStatus error:", err);
       setBranch(null);
       setGitDirtyFiles([]);
+      setIsGitRepo(false);
     }
-  }
+  };
 
   useEffect(() => {
     updateStatus();
@@ -60,58 +56,43 @@ export default function GitStatus() {
   useEffect(() => {
     const handler = () => updateStatus();
     window.addEventListener("workspace-changed", handler);
-    return () =>
-      window.removeEventListener("workspace-changed", handler);
+    return () => window.removeEventListener("workspace-changed", handler);
   }, []);
 
+  // Editor dirty files
+  const editorDirty = tabs.filter(t => t.dirty).map(t => t.path);
 
-  /* ───────────── DIRTY MERGE (VS CODE STYLE) ───────────── */
-
-const editorDirty = tabs.filter(t => t.dirty).map(t => t.path);
-
-// 🔥 VS CODE BEHAVIOR:
-// If editor is clean, suppress git-dirty until file is saved
+  // Only show git dirty for files that exist in editor dirty list
   const effectiveGitDirty = gitDirtyFiles.filter(gitPath =>
-    editorDirty.some(
-      editorPath => basename(editorPath) === basename(gitPath)
-    )
+    editorDirty.some(editorPath => basename(editorPath) === basename(gitPath))
   );
 
-  const allDirty = Array.from(
-    new Set([...editorDirty, ...effectiveGitDirty])
-  );
+  const allDirty = Array.from(new Set([...editorDirty, ...effectiveGitDirty]));
 
-
-  function label(filePath: string) {
+  const label = (filePath: string) => {
     const name = basename(filePath);
-
     const editor = editorDirty.some(p => basename(p) === name);
     const git = effectiveGitDirty.some(p => basename(p) === name);
 
     if (editor && git) return `${name} (unsaved + git)`;
     if (editor) return `${name} (unsaved)`;
     return `${name} (git)`;
-  }
+  };
 
   return (
     <div className="h-full px-3 flex items-center gap-3 text-xs bg-muted text-default border-t border-default">
-      {/* GLOBAL DIRTY DOT */}
-      {allDirty.length > 0 && (
-        <span className="w-2 h-2 rounded-full bg-red-500" />
-      )}
+      {allDirty.length > 0 && <span className="w-2 h-2 rounded-full bg-red-500" />}
 
       <div>
         Branch:{" "}
         <span className="font-semibold">
-          {branch ?? "No Git repo"}
+          {isGitRepo ? branch ?? "DETACHED" : "No Git repo"}
         </span>
       </div>
 
       <div className="truncate max-w-[60%]">
         {allDirty.length > 0 ? (
-          <span className="text-red-400">
-            {allDirty.map(label).join(", ")}
-          </span>
+          <span className="text-red-400">{allDirty.map(label).join(", ")}</span>
         ) : (
           "Clean"
         )}

@@ -2,17 +2,24 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
+ * Check if a folder is a Git repository
+ */
+export async function isGitRepo(repoPath: string): Promise<boolean> {
+  return await invoke("git_is_repo", { repoPath });
+}
+
+/**
  * Get current branch name for a repo
  */
 export async function getCurrentBranch(repoPath: string): Promise<string> {
-  return await invoke("get_current_branch", { repoPath });
+  return await invoke("git_get_current_branch", { repoPath });
 }
 
 /**
  * Get list of uncommitted / changed files
  */
 export async function getUncommittedFiles(repoPath: string): Promise<string[]> {
-  return await invoke("get_uncommitted_files", { repoPath });
+  return await invoke("git_get_uncommitted_files", { repoPath });
 }
 
 /**
@@ -41,9 +48,6 @@ export async function gitPull(repoPath: string): Promise<void> {
   await invoke("git_pull", { repoPath });
 }
 
-export async function gitClone(
-  url: string,
-  targetPath: string
-): Promise<void> {
+export async function gitClone(url: string, targetPath: string): Promise<void> {
   await invoke("git_clone", { url, targetPath });
 }

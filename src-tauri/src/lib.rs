@@ -1,7 +1,6 @@
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 use tauri_plugin_fs::FsExt;
 use std::fs;
-use git2::{Repository, StatusOptions};
 use serde::{Deserialize, Serialize};
 use device_id::get_device_id;
 use device_keys::{get_or_create_device_key, public_key_base64};
@@ -10,6 +9,7 @@ use workspace::create_default_workspace;
 
 
 
+mod git;
 
 
 /* ─────────────────────────────
@@ -189,39 +189,6 @@ fn allow_workspace_dir(app: AppHandle, path: String) -> Result<(), String> {
 
     println!("✅ FS access granted for {}", path);
     Ok(())
-}
-
-/* ─────────────────────────────
-   GIT COMMANDS
-   ───────────────────────────── */
-#[tauri::command]
-fn get_uncommitted_files(repo_path: String) -> Result<Vec<String>, String> {
-    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
-
-    let mut opts = StatusOptions::new();
-    opts.include_untracked(true)
-        .recurse_untracked_dirs(true)
-        .include_ignored(false);
-
-    let statuses = repo.statuses(Some(&mut opts)).map_err(|e| e.to_string())?;
-
-    Ok(statuses
-        .iter()
-        .filter_map(|e| e.path().map(String::from))
-        .collect())
-}
-
-#[tauri::command]
-fn get_current_branch(repo_path: String) -> Result<String, String> {
-    let repo = Repository::open(repo_path)
-        .map_err(|e| format!("Failed to open repo: {}", e))?;
-
-    let branch = match repo.head() {
-        Ok(head) => head.shorthand().unwrap_or("DETACHED").to_string(),
-        Err(_) => "NO_COMMITS".to_string(),
-    };
-
-    Ok(branch)
 }
 
 /* ─────────────────────────────
@@ -760,8 +727,13 @@ pub fn run() {
             read_file,
             write_file,
             allow_workspace_dir,
-            get_uncommitted_files,
-            get_current_branch,
+            git::git_is_repo,
+            git::git_detect_root,
+            git::git_init_repo,
+            git::git_get_current_branch,
+            git::git_get_uncommitted_files,
+            git::git_commit_all,
+            git::git_get_commit_graph,
             log_and_exit,
             get_last_session,
             frontend_log,

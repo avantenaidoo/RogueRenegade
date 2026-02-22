@@ -15,6 +15,8 @@ import { useEditorStore } from "../store";
 
 import TerminalPanel from "./Terminal/TerminalPanel";
 
+import SourceControl from "./SourceControl";
+
 interface CanvasProps {
   onSwitchAccount: () => void;
   onLogout: () => void;
@@ -228,29 +230,39 @@ export const Canvas: React.FC<CanvasProps> = ({
           className={`flex border-r overflow-hidden transition-all duration-300 ease-in-out ${
             isExplorerResizing ? "transition-none" : ""
           }`}
-          style={{
-            width: activeSidebarPanel === "explorer" ? `${explorerWidth}px` : "0px",
-          }}
-        >
-          <div
-            className={`flex-1 overflow-auto transition-opacity duration-300 ease-in-out ${
-              activeSidebarPanel === "explorer" ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-          >
-            {activeSidebarPanel === "explorer" && <FileExplorer />}
-          </div>
+            style={{
+              width:
+                activeSidebarPanel === "explorer" || activeSidebarPanel === "sourceControl"
+                  ? `${explorerWidth}px`
+                  : "0px",
+            }}
 
-          {activeSidebarPanel === "explorer" && (
-            <div
-              className="w-1 hover:bg-blue-500/40"
-              style={{ cursor: "ew-resize" }}
-              onMouseDown={() => {
-                setIsExplorerResizing(true);
-                document.body.style.cursor = "ew-resize";
-                document.body.style.userSelect = "none";
-              }}
-            />
-          )}
+        >
+        <div
+          className={`flex-1 overflow-auto transition-opacity duration-300 ease-in-out ${
+            activeSidebarPanel === "explorer" || activeSidebarPanel === "sourceControl"
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
+          }`}
+        >
+          {activeSidebarPanel === "explorer" && <FileExplorer />}
+          {activeSidebarPanel === "sourceControl" && <SourceControl />}
+        </div>
+
+
+            {(activeSidebarPanel === "explorer" ||
+              activeSidebarPanel === "sourceControl") && (
+              <div
+                className="w-1 hover:bg-blue-500/40"
+                style={{ cursor: "ew-resize" }}
+                onMouseDown={() => {
+                  setIsExplorerResizing(true);
+                  document.body.style.cursor = "ew-resize";
+                  document.body.style.userSelect = "none";
+                }}
+              />
+            )}
+
         </div>
 
         {/* CENTER — EDITOR */}
