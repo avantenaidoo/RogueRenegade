@@ -734,6 +734,8 @@ pub fn run() {
             git::git_get_uncommitted_files,
             git::git_commit_all,
             git::git_get_commit_graph,
+            git::git_get_commit_files,
+            git::git_get_commit_diff_for_file,
             log_and_exit,
             get_last_session,
             frontend_log,
