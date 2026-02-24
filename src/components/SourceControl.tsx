@@ -26,12 +26,6 @@ const SourceControl: React.FC = () => {
   const [graphOpen, setGraphOpen] = useState(true);
   const [graphHeight, setGraphHeight] = useState(DEFAULT_HEIGHT);
 
-  // New states for VS Code-like interaction
-  const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
-  const [changedFiles, setChangedFiles] = useState<string[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [diffContent, setDiffContent] = useState<string>("");
-
   const resizing = useRef(false);
   const workspace = workspaces.find((w) => w.id === focusedWorkspaceId);
 
@@ -113,37 +107,6 @@ const SourceControl: React.FC = () => {
       debugState("Git error");
     }
   }, [workspace?.id]);
-
-  // ───────────── LOAD CHANGED FILES FOR COMMIT ─────────────
-  const loadCommitFiles = useCallback(async (commitId: string) => {
-    if (!repoPath) return;
-    try {
-      const files = await invoke<string[]>("git_get_commit_files", { repoPath, commitId });
-      setChangedFiles(files);
-      setSelectedFile(null); // Reset diff when new commit selected
-      setDiffContent("");
-    } catch (err) {
-      console.error("Failed to load commit files:", err);
-      setChangedFiles([]);
-    }
-  }, [repoPath]);
-
-  // ───────────── LOAD DIFF FOR FILE IN COMMIT ─────────────
-  const loadFileDiff = useCallback(async (filePath: string) => {
-    if (!repoPath || !selectedCommitId) return;
-    try {
-      const diff = await invoke<string>("git_get_commit_diff_for_file", {
-        repoPath,
-        commitId: selectedCommitId,
-        filePath,
-      });
-      setDiffContent(diff);
-      setSelectedFile(filePath);
-    } catch (err) {
-      console.error("Failed to load diff:", err);
-      setDiffContent("Error loading diff");
-    }
-  }, [repoPath, selectedCommitId]);
 
   // ───────────── RESTORE SESSION ─────────────
   useEffect(() => {
@@ -238,13 +201,19 @@ const SourceControl: React.FC = () => {
       <div className="flex-1 overflow-auto">
         <div className="px-3 py-2 text-sm border-b border-default">Changes</div>
         <div className="flex flex-col text-sm">
-          {files.length
-            ? files.map((file) => (
-                <div key={file} className="px-3 py-1 hover:bg-neutral-500 cursor-pointer">
-                  {file.split(/[\\/]/).pop()}
-                </div>
-              ))
-            : <div className="text-neutral-400 text-sm py-2">No changes</div>}
+          {files.length ? (
+            files.map((file) => (
+              <div
+                key={file}
+                className="px-3 py-1 hover:bg-neutral-500 cursor-pointer"
+                // You can later add onClick to open diff in editor here
+              >
+                {file.split(/[\\/]/).pop()}
+              </div>
+            ))
+          ) : (
+            <div className="text-neutral-400 text-sm py-2 px-3">No changes</div>
+          )}
         </div>
       </div>
 
@@ -267,65 +236,25 @@ const SourceControl: React.FC = () => {
               <div className="flex flex-col text-sm px-3 pb-3">
                 {commits.length ? (
                   commits.map((commit, idx) => (
-                    <div key={commit.id}>
-                      <div
-                        className={`flex items-start gap-3 py-1 cursor-pointer hover:bg-neutral-600 ${
-                          selectedCommitId === commit.id ? "bg-neutral-700" : ""
-                        }`}
-                        onClick={() => {
-                          setSelectedCommitId(commit.id);
-                          loadCommitFiles(commit.id);
-                        }}
-                      >
+                    <div key={commit.id} className="py-1">
+                      <div className="flex items-start gap-3">
                         <div className="flex flex-col items-center">
                           <div className="w-2 h-2 rounded-full bg-default border border-default" />
-                          {idx !== commits.length - 1 && <div className="flex-1 w-px bg-default opacity-50" />}
+                          {idx !== commits.length - 1 && (
+                            <div className="flex-1 w-px bg-default opacity-50" />
+                          )}
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs font-medium">{commit.message}</span>
                           <span className="text-[10px] opacity-50">{commit.author}</span>
                         </div>
                       </div>
-
-                      {/* Show changed files when this commit is selected */}
-                      {selectedCommitId === commit.id && (
-                        <div className="ml-6 mt-1 text-xs">
-                          <div className="font-semibold">Files changed:</div>
-                          {changedFiles.length ? (
-                            changedFiles.map((file) => (
-                              <div
-                                key={file}
-                                className={`py-0.5 cursor-pointer hover:text-blue-400 ${
-                                  selectedFile === file ? "text-blue-400" : ""
-                                }`}
-                                onClick={() => loadFileDiff(file)}
-                              >
-                                {file}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-neutral-500">Loading files...</div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))
                 ) : (
                   <div className="text-neutral-400 text-sm py-2">No commits yet</div>
                 )}
               </div>
-
-              {/* Diff view when file selected */}
-              {selectedFile && (
-                <div className="mt-4 p-3 bg-neutral-900 border-t border-default">
-                  <div className="text-sm font-semibold mb-2">
-                    Diff for: {selectedFile}
-                  </div>
-                  <pre className="text-xs whitespace-pre-wrap bg-black p-2 rounded overflow-auto max-h-96">
-                    {diffContent || "Loading diff..."}
-                  </pre>
-                </div>
-              )}
             </div>
           </>
         )}
