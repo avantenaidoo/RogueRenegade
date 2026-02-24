@@ -35,12 +35,27 @@ pub fn git_is_repo(repo_path: String) -> Result<bool, String> {
 #[allow(dead_code)]
 #[command]
 pub fn git_detect_root(path: String) -> Result<String, String> {
-    let p = std::path::Path::new(&path);
+    let mut current = std::path::PathBuf::from(path);
 
-    if p.join(".git").exists() {
-        Ok(p.to_string_lossy().to_string())
-    } else {
-        Err("No Git repository found in this workspace".into())
+    // If path is a file, start from its parent directory
+    if current.is_file() {
+        if let Some(parent) = current.parent() {
+            current = parent.to_path_buf();
+        } else {
+            return Err("Invalid path - no parent directory".into());
+        }
+    }
+
+    loop {
+        if current.join(".git").exists() && current.join(".git").is_dir() {
+            return Ok(current.to_string_lossy().into_owned());
+        }
+
+        // Go up one level
+        if !current.pop() {
+            // Reached filesystem root without finding .git
+            return Err("No Git repository found in path or any parent".into());
+        }
     }
 }
 

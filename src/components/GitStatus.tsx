@@ -3,8 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore } from "../store";
 
 export default function GitStatus() {
-  const { tabs, activeTabIndex } = useEditorStore();
-  const activeTab = tabs[activeTabIndex];
+  const { tabs, repoPath } = useEditorStore();
 
   const [branch, setBranch] = useState<string | null>(null);
   const [gitDirtyFiles, setGitDirtyFiles] = useState<string[]>([]);
@@ -14,44 +13,42 @@ export default function GitStatus() {
     return path.split(/[\\/]/).pop() ?? path;
   }
 
-  const updateStatus = async () => {
-    if (!activeTab) {
+const updateStatus = async () => {
+  if (!repoPath) {
+    setBranch(null);
+    setGitDirtyFiles([]);
+    setIsGitRepo(false);
+    return;
+  }
+
+  try {
+    const repo = await invoke<boolean>("git_is_repo", { repoPath });
+    setIsGitRepo(repo);
+
+    if (!repo) {
       setBranch(null);
       setGitDirtyFiles([]);
-      setIsGitRepo(false);
       return;
     }
 
-    const repoPath = activeTab.path.split(/[\\/]/).slice(0, -1).join("/");
+    const currentBranch = await invoke<string>("git_get_current_branch", { repoPath });
+    const uncommitted = await invoke<string[]>("git_get_uncommitted_files", { repoPath });
 
-    try {
-      const repo = await invoke<boolean>("git_is_repo", { repoPath });
-      setIsGitRepo(repo);
+    setBranch(currentBranch);
+    setGitDirtyFiles(uncommitted);
+  } catch (err) {
+    console.error("GitStatus error:", err);
+    setBranch(null);
+    setGitDirtyFiles([]);
+    setIsGitRepo(false);
+  }
+};
 
-      if (!repo) {
-        setBranch(null);
-        setGitDirtyFiles([]);
-        return;
-      }
-
-      const currentBranch = await invoke<string>("git_get_current_branch", { repoPath });
-      const uncommitted = await invoke<string[]>("git_get_uncommitted_files", { repoPath });
-
-      setBranch(currentBranch);
-      setGitDirtyFiles(uncommitted);
-    } catch (err) {
-      console.error("GitStatus error:", err);
-      setBranch(null);
-      setGitDirtyFiles([]);
-      setIsGitRepo(false);
-    }
-  };
-
-  useEffect(() => {
-    updateStatus();
-    const id = setInterval(updateStatus, 3000);
-    return () => clearInterval(id);
-  }, [activeTab]);
+useEffect(() => {
+  updateStatus();
+  const id = setInterval(updateStatus, 3000);
+  return () => clearInterval(id);
+}, [repoPath]);
 
   useEffect(() => {
     const handler = () => updateStatus();

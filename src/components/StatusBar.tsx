@@ -1,37 +1,24 @@
 import { useEffect, useState } from "react";
-import { exists } from "@tauri-apps/plugin-fs";
-import { getCurrentBranch } from "../utils/git";
+import { getCurrentBranch, isGitRepo } from "../utils/git";
 import { useEditorStore } from "../store";
 
 export default function StatusBar() {
-  const { tabs, activeTabIndex } = useEditorStore();
-  const activeTab = tabs[activeTabIndex];
+  const repoPath = useEditorStore((state) => state.repoPath);
 
   const [branch, setBranch] = useState<string | null>(null);
+  const [isRepo, setIsRepo] = useState(false);
 
-  function getRepoPath(filePath: string) {
-    return filePath.split("/").slice(0, -1).join("/");
-  }
-
-  async function isGitRepo(path: string) {
-    try {
-      return await exists(`${path}/.git`);
-    } catch {
-      return false;
-    }
-  }
-
-  async function updateGitInfo() {
-    if (!activeTab) {
+  const updateGitInfo = async () => {
+    if (!repoPath) {
       setBranch(null);
+      setIsRepo(false);
       return;
     }
 
-    const repoPath = getRepoPath(activeTab.path);
+    const repo = await isGitRepo(repoPath);
+    setIsRepo(repo);
 
-    // ✅ HARD GUARD — NO GIT, NO CALLS
-    const hasGit = await isGitRepo(repoPath);
-    if (!hasGit) {
+    if (!repo) {
       setBranch(null);
       return;
     }
@@ -43,25 +30,16 @@ export default function StatusBar() {
       console.error("StatusBar git update failed:", err);
       setBranch(null);
     }
-  }
+  };
 
   useEffect(() => {
     updateGitInfo();
-  }, [activeTab]);
-
-  useEffect(() => {
-    const handler = () => updateGitInfo();
-    window.addEventListener("workspace-changed", handler);
-    return () =>
-      window.removeEventListener("workspace-changed", handler);
-  }, []);
-
+  }, [repoPath]);
 
   return (
-    // <div className="h-6 px-2 flex items-center justify-between text-xs bg-muted border-t border-default">
     <div className="flex-1 px-3 flex items-center justify-end text-xs bg-muted border-t border-default">
       <div>
-        {branch ? `Branch: ${branch}` : "Not a Git repository"}
+        {isRepo ? `Branch: ${branch ?? "DETACHED"}` : "No Git repo"}
       </div>
       <div>Rogue Renegade IDE</div>
     </div>
