@@ -13,6 +13,22 @@ interface EditorProps {
   path: string;
 }
 
+/* ✅ LANGUAGE DETECTOR */
+const getLanguage = (p: string) => {
+  // 🔥 CRITICAL: DIFF FILES MUST NOT USE TYPESCRIPT
+  if (p.startsWith("diff://")) {
+    return "plaintext";
+  }
+
+  if (p.endsWith(".ts") || p.endsWith(".tsx")) return "typescript";
+  if (p.endsWith(".js") || p.endsWith(".jsx")) return "javascript";
+  if (p.endsWith(".json")) return "json";
+  if (p.endsWith(".css")) return "css";
+  if (p.endsWith(".html")) return "html";
+
+  return "plaintext";
+};
+
 export default function Editor({
   value,
   onChange,
@@ -22,14 +38,10 @@ export default function Editor({
   const store = useEditorStore();
   const editorRef = useRef<any>(null);
 
-  /* 🔒 RESTORE GUARD */
   const restoringCursorRef = useRef(false);
-
-  /* ✅ VS CODE STYLE SELECTION CACHE */
   const lastSelectionRef = useRef<any>(null);
   const lastSelectedTextRef = useRef<string>("");
 
-  /* ✅ PER-FILE MODEL CACHE (THIS FIXES UNDO) */
   const modelsRef = useRef<Map<string, any>>(new Map());
 
   console.log("🧪 Editor render", {
@@ -40,15 +52,9 @@ export default function Editor({
   });
 
   /* ─────────────────────────────
-     MONACO SETUP + CURSOR DEBUG
+     MONACO SETUP
      ───────────────────────────── */
   const handleEditorMount: OnMount = (editor, monaco) => {
-    console.log("🧠 Monaco mounted", {
-      editorId: editor.getId?.(),
-      modelId: editor.getModel()?.id,
-      uri: editor.getModel()?.uri?.toString(),
-    });
-
     editorRef.current = editor;
 
     const ts = monaco.languages.typescript;
@@ -72,14 +78,20 @@ export default function Editor({
       forceConsistentCasingInFileNames: true,
     });
 
-    /* ✅ SAFE CREATE OR REUSE MODEL PER FILE */
-    const uri = monaco.Uri.file(path);
-    let model = monaco.editor.getModel(uri); // ← check if Monaco already has it
+    const isDiff = path.startsWith("diff://");
+
+    const uri = isDiff
+      ? monaco.Uri.parse(
+          `inmemory://model/${encodeURIComponent(path)}`
+        )
+      : monaco.Uri.file(path);
+
+    let model = monaco.editor.getModel(uri);
 
     if (!model) {
       model = monaco.editor.createModel(
         value ?? "",
-        path.endsWith(".ts") || path.endsWith(".tsx") ? "typescript" : "javascript",
+        getLanguage(path),
         uri
       );
     }
@@ -93,12 +105,6 @@ export default function Editor({
     const tab = store.tabs[store.activeTabIndex];
     const cursor = tab?.cursor;
 
-    console.log("🔁 RESTORE ATTEMPT", {
-      tabPath: tab?.path,
-      savedCursor: cursor,
-      modelBefore: editor.getPosition(),
-    });
-
     if (cursor) {
       restoringCursorRef.current = true;
 
@@ -109,21 +115,15 @@ export default function Editor({
 
         setTimeout(() => {
           restoringCursorRef.current = false;
-          console.log("🔓 RESTORE COMPLETE");
         }, 0);
       });
     }
 
-    /* ✅ VS CODE BEHAVIOR: TRACK SELECTION BEFORE MENU STEALS FOCUS */
     editor.onDidChangeCursorSelection((e) => {
       if (e.selection && !e.selection.isEmpty()) {
         lastSelectionRef.current = e.selection;
         lastSelectedTextRef.current =
           editor.getModel()?.getValueInRange(e.selection) ?? "";
-
-        console.log("🧠 SELECTION CACHED", {
-          textLength: lastSelectedTextRef.current.length,
-        });
       }
     });
 
@@ -139,9 +139,12 @@ export default function Editor({
     });
   };
 
+  /* ─────────────────────────────
+     CLEANUP ON WORKSPACE CHANGE
+     ───────────────────────────── */
   useEffect(() => {
     const handler = () => {
-      modelsRef.current.forEach(model => model.dispose());
+      modelsRef.current.forEach((model) => model.dispose());
       modelsRef.current.clear();
     };
 
@@ -151,7 +154,7 @@ export default function Editor({
   }, []);
 
   /* ─────────────────────────────
-     🔥 SWITCH MODEL ON FILE CHANGE (SAFE)
+     SWITCH MODEL ON FILE CHANGE
      ───────────────────────────── */
   useEffect(() => {
     const editor = editorRef.current;
@@ -160,13 +163,20 @@ export default function Editor({
     const monaco = (window as any).monaco;
     if (!monaco) return;
 
-    const uri = monaco.Uri.file(path);
-    let model = monaco.editor.getModel(uri); // ← SAFE check
+    const isDiff = path.startsWith("diff://");
+
+    const uri = isDiff
+      ? monaco.Uri.parse(
+          `inmemory://model/${encodeURIComponent(path)}`
+        )
+      : monaco.Uri.file(path);
+
+    let model = monaco.editor.getModel(uri);
 
     if (!model) {
       model = monaco.editor.createModel(
         value ?? "",
-        path.endsWith(".ts") || path.endsWith(".tsx") ? "typescript" : "javascript",
+        getLanguage(path),
         uri
       );
     }
@@ -179,20 +189,12 @@ export default function Editor({
   }, [path]);
 
   /* ─────────────────────────────
-     🔥 MENU COMMAND HANDLER
+     MENU COMMAND HANDLER
      ───────────────────────────── */
   useEffect(() => {
     const handler = async (e: CustomEvent<{ action: string }>) => {
       const editor = editorRef.current;
-
-      console.group("🧨 MENU COMMAND");
-      console.log("Action:", e.detail.action);
-
-      if (!editor) {
-        console.error("❌ NO EDITOR REF");
-        console.groupEnd();
-        return;
-      }
+      if (!editor) return;
 
       editor.focus();
 
@@ -233,8 +235,6 @@ export default function Editor({
           break;
         }
       }
-
-      console.groupEnd();
     };
 
     window.addEventListener(
@@ -274,6 +274,7 @@ export default function Editor({
             onChange(val);
           }}
           options={{
+            readOnly: path.startsWith("diff://"),
             automaticLayout: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,

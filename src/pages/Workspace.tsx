@@ -219,25 +219,46 @@ export default function Workspace({
         }
       }
 
-      for (const path of session.open_files) {
-        try {
-          const content = await invoke<string>("read_file", { path });
+for (const path of session.open_files) {
+  try {
+    let content = "";
 
-          const state = useEditorStore.getState();
-          const existingIndex = state.tabs.findIndex(t => t.path === path);
-          const index = existingIndex !== -1 ? existingIndex : state.tabs.length;
+    // 🔥 HANDLE DIFF TABS CORRECTLY
+    if (path.startsWith("diff://")) {
+      const [, rest] = path.split("diff://");
+      const [realPath, commitId] = rest.split("@");
 
-          updateTab(index, { path, content });
+      if (!session.last_workspace) continue;
 
-          const cursorEntry = session.cursors?.find(c => c.path === path);
-          if (cursorEntry) {
-            updateTab(index, { cursor: cursorEntry.cursor });
-            console.log("🎯 Restored cursor for", path, cursorEntry.cursor);
-          }
-        } catch (err) {
-          console.error("❌ FAILED TO RESTORE FILE", path, err);
+      content = await invoke<string>(
+        "git_get_commit_diff_for_file",
+        {
+          repoPath: session.last_workspace,
+          commitId,
+          filePath: realPath,
         }
-      }
+      );
+    } else {
+      // 🔥 NORMAL FILE
+      content = await invoke<string>("read_file", { path });
+    }
+
+    const state = useEditorStore.getState();
+    const existingIndex = state.tabs.findIndex(t => t.path === path);
+    const index =
+      existingIndex !== -1 ? existingIndex : state.tabs.length;
+
+    updateTab(index, { path, content });
+
+    const cursorEntry = session.cursors?.find(c => c.path === path);
+    if (cursorEntry) {
+      updateTab(index, { cursor: cursorEntry.cursor });
+    }
+
+  } catch (err) {
+    console.error("❌ FAILED TO RESTORE FILE", path, err);
+  }
+}
 
       // Always select the first tab on refresh
       const state = useEditorStore.getState();
