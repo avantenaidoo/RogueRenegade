@@ -4,8 +4,8 @@ use git2::{
     Signature,
     IndexAddOption,
     Sort,
-    DiffOptions,
-    DiffFormat,
+    // DiffOptions,
+    // DiffFormat,
     TreeWalkMode,
     TreeWalkResult,
 };
@@ -21,6 +21,11 @@ pub struct GitCommitNode {
     pub parents: Vec<String>,
 }
 
+#[derive(Serialize)]
+pub struct CommitFileVersions {
+    pub original: String,
+    pub modified: String,
+}
 /* ─────────────────────────────
    CHECK IF DIRECTORY IS A GIT REPO
    ───────────────────────────── */
@@ -308,61 +313,56 @@ pub fn git_get_commit_files(repo_path: String, commit_id: String) -> Result<Vec<
    GET DIFF FOR A FILE IN A COMMIT
    ───────────────────────────── */
 #[command]
-pub fn git_get_commit_diff_for_file(repo_path: String, commit_id: String, file_path: String) -> Result<String, String> {
+pub fn git_get_commit_diff_for_file(
+    repo_path: String,
+    commit_id: String,
+    file_path: String,
+) -> Result<CommitFileVersions, String> {
+
     let repo = Repository::open(&repo_path)
         .map_err(|e| format!("Failed to open repo: {}", e))?;
 
-    let commit_id_parsed = match commit_id.parse::<git2::Oid>() {
-        Ok(id) => id,
-        Err(_) => return Err("Invalid commit ID".to_string()),
-    };
+    let oid = commit_id
+        .parse::<git2::Oid>()
+        .map_err(|_| "Invalid commit ID".to_string())?;
 
-    let commit = match repo.find_commit(commit_id_parsed) {
-        Ok(c) => c,
-        Err(e) => return Err(format!("Commit not found: {}", e)),
-    };
+    let commit = repo
+        .find_commit(oid)
+        .map_err(|e| format!("Commit not found: {}", e))?;
 
-    let parent = commit.parent(0).ok();
+    let commit_tree = commit
+        .tree()
+        .map_err(|e| format!("Commit tree failed: {}", e))?;
 
-    let mut diff_opts = DiffOptions::new();
-    diff_opts.pathspec(file_path.as_str());
-
-    let diff = match parent {
-        Some(p) => {
-            let parent_tree = match p.tree() {
-                Ok(t) => t,
-                Err(e) => return Err(format!("Parent tree failed: {}", e)),
-            };
-            let commit_tree = match commit.tree() {
-                Ok(t) => t,
-                Err(e) => return Err(format!("Commit tree failed: {}", e)),
-            };
-            match repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), Some(&mut diff_opts)) {
-                Ok(d) => d,
-                Err(e) => return Err(format!("Diff failed: {}", e)),
-            }
+    // Modified (current commit version)
+    let modified = match commit_tree.get_path(std::path::Path::new(&file_path)) {
+        Ok(entry) => {
+            let blob = repo.find_blob(entry.id())
+                .map_err(|e| format!("Blob error: {}", e))?;
+            String::from_utf8_lossy(blob.content()).to_string()
         }
-        None => {
-            let commit_tree = match commit.tree() {
-                Ok(t) => t,
-                Err(e) => return Err(format!("Commit tree failed: {}", e)),
-            };
-            match repo.diff_tree_to_tree(None, Some(&commit_tree), Some(&mut diff_opts)) {
-                Ok(d) => d,
-                Err(e) => return Err(format!("Diff failed: {}", e)),
+        Err(_) => String::new(),
+    };
+
+    // Original (parent commit version)
+    let original = if commit.parent_count() > 0 {
+        let parent = commit.parent(0)
+            .map_err(|e| format!("Parent error: {}", e))?;
+
+        let parent_tree = parent.tree()
+            .map_err(|e| format!("Parent tree error: {}", e))?;
+
+        match parent_tree.get_path(std::path::Path::new(&file_path)) {
+            Ok(entry) => {
+                let blob = repo.find_blob(entry.id())
+                    .map_err(|e| format!("Blob error: {}", e))?;
+                String::from_utf8_lossy(blob.content()).to_string()
             }
+            Err(_) => String::new(),
         }
+    } else {
+        String::new()
     };
 
-    let mut diff_content = String::new();
-    match diff.print(DiffFormat::Patch, |_, _, line| {
-        let content = String::from_utf8_lossy(line.content());
-        diff_content.push_str(&content);
-        true
-    }) {
-        Ok(_) => (),
-        Err(e) => return Err(format!("Diff print failed: {}", e)),
-    };
-
-    Ok(diff_content)
+    Ok(CommitFileVersions { original, modified })
 }

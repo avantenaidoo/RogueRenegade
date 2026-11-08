@@ -30,7 +30,6 @@ const SourceControl: React.FC = () => {
   const [graphOpen, setGraphOpen] = useState(true);
   const [graphHeight, setGraphHeight] = useState(DEFAULT_HEIGHT);
 
-  // 🔥 NEW STATE (for diff interaction)
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
   const [commitFiles, setCommitFiles] = useState<string[]>([]);
 
@@ -132,10 +131,13 @@ const SourceControl: React.FC = () => {
     } catch {}
   };
 
-  // ───────────── DIFF TAB OPEN ─────────────
-  const openDiffTab = (filePath: string, commitId: string, diff: string) => {
+  // ───────────── FIXED DIFF TAB OPEN (no 3rd arg, micro-delay patch) ─────────────
+  const openDiffTab = (
+    filePath: string,
+    commitId: string,
+    diff: { original: string; modified: string }
+  ) => {
     const syntheticPath = `diff://${filePath}@${commitId}`;
-
     const existingIndex = tabs.findIndex((t) => t.path === syntheticPath);
 
     if (existingIndex !== -1) {
@@ -143,10 +145,23 @@ const SourceControl: React.FC = () => {
       return;
     }
 
-    addTab(syntheticPath, diff);
+    // Step 1: Add tab normally (only path + modified content)
+    addTab(syntheticPath, diff.modified);
 
-    const newIndex = useEditorStore.getState().tabs.length - 1;
-    setActiveTab(newIndex);
+    // Step 2: Patch originalContent in the NEXT microtask (prevents race)
+    setTimeout(() => {
+      const currentTabs = useEditorStore.getState().tabs;
+      const newIndex = currentTabs.findIndex(t => t.path === syntheticPath);
+      
+      if (newIndex !== -1) {
+        useEditorStore.getState().updateTab(newIndex, {
+          originalContent: diff.original,
+          dirty: false,
+          isDiff: true,
+        });
+        setActiveTab(newIndex);
+      }
+    }, 0); // 0 ms = next tick, enough to let first render settle
   };
 
   // ───────────── RESIZE ─────────────
@@ -223,9 +238,7 @@ const SourceControl: React.FC = () => {
           className="px-3 py-2 text-sm cursor-pointer flex justify-between hover:bg-neutral-500 select-none"
         >
           <span>Graph</span>
-          <span className="text-xs opacity-60">
-            {graphOpen ? "▾" : "▸"}
-          </span>
+          <span className="text-xs opacity-60">{graphOpen ? "▾" : "▸"}</span>
         </div>
 
         {graphOpen && (
@@ -254,10 +267,7 @@ const SourceControl: React.FC = () => {
 
                             const changedFiles = await invoke<string[]>(
                               "git_get_commit_files",
-                              {
-                                repoPath,
-                                commitId: commit.id,
-                              }
+                              { repoPath, commitId: commit.id }
                             );
 
                             setSelectedCommit(commit.id);
@@ -292,14 +302,14 @@ const SourceControl: React.FC = () => {
                               className="cursor-pointer hover:bg-neutral-700 px-2 py-1 rounded"
                               onClick={async () => {
                                 try {
-                                  const diff = await invoke<string>(
-                                    "git_get_commit_diff_for_file",
-                                    {
-                                      repoPath,
-                                      commitId: commit.id,
-                                      filePath: file,
-                                    }
-                                  );
+                                  const diff = await invoke<{
+                                    original: string;
+                                    modified: string;
+                                  }>("git_get_commit_diff_for_file", {
+                                    repoPath,
+                                    commitId: commit.id,
+                                    filePath: file,
+                                  });
 
                                   openDiffTab(file, commit.id, diff);
                                 } catch (err) {
@@ -315,9 +325,7 @@ const SourceControl: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-neutral-400 text-sm py-2">
-                    No commits yet
-                  </div>
+                  <div className="text-neutral-400 text-sm py-2">No commits yet</div>
                 )}
               </div>
             </div>

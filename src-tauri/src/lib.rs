@@ -168,7 +168,47 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 fn read_file(path: String) -> Result<String, String> {
     println!("📖 read_file called -> {}", path);
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+
+    let ext = std::path::Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    // Force base64 for known images — NEVER try UTF-8 on them
+    let is_known_image = matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "ico" | "svg"
+    );
+
+    if !is_known_image {
+        // Only try UTF-8 for non-image files
+        if let Ok(text) = String::from_utf8(bytes.clone()) {
+            return Ok(text);
+        }
+    }
+
+    // Binary / image → always base64 data URI
+    let mime_type = match ext.as_str() {
+        "png"  => "image/png",
+        "jpg"  | "jpeg" => "image/jpeg",
+        "gif"  => "image/gif",
+        "webp" => "image/webp",
+        "bmp"  => "image/bmp",
+        "ico"  => "image/x-icon",
+        "svg"  => "image/svg+xml",
+        _      => "application/octet-stream",
+    };
+
+    use base64::engine::general_purpose;
+    use base64::Engine as _;
+
+    let b64 = general_purpose::STANDARD.encode(&bytes);
+    let data_uri = format!("data:{};base64,{}", mime_type, b64);
+
+    Ok(data_uri)
 }
 
 #[tauri::command]

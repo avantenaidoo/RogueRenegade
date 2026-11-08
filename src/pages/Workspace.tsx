@@ -18,7 +18,6 @@ interface WorkspaceProps {
   refreshPendingApprovals: () => void;
 }
 
-
 export default function Workspace({
   onSwitchAccount,
   onLogout,
@@ -43,29 +42,18 @@ export default function Workspace({
 
   console.log("🪟 WINDOW MODE", window.location.href, isInitialBlankWindow);
 
-
   let isClosing = false;
 
-
-  /* ─────────────────────────────
-     INIT COLLAB
-     ───────────────────────────── */
   useEffect(() => {
     console.log("🟢 INIT COLLAB");
     initCollaboration("avant", "room-1");
   }, []);
 
-  /* ─────────────────────────────
-     THEME TOGGLE
-     ───────────────────────────── */
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
     setTheme(isDarkMode ? "vs-dark" : "vs-light");
   }, [isDarkMode]);
 
-  /* ─────────────────────────────
-     💾 SAVE SESSION + AUTO SAVE + CURSORS
-     ───────────────────────────── */
   useEffect(() => {
     const saveSessionOnly = async () => {
       const state = useEditorStore.getState();
@@ -86,7 +74,6 @@ export default function Workspace({
           cursor: t.cursor!
         }));
 
-      // auto-save dirty files
       for (const tab of state.tabs) {
         if (tab.dirty && tab.path && tab.path !== "untitled") {
           await writeTextFile(tab.path, tab.content);
@@ -102,36 +89,25 @@ export default function Workspace({
       useEditorStore.getState().saveTerminals();
     };
 
-    // MENU EXIT
     const unlistenMenu = listen("menu-exit", async () => {
       console.log("🚪 MENU EXIT");
       await saveSessionOnly();
     });
 
-    // REAL WINDOW CLOSE (TAURI v2)
     const unlistenClose = appWindow.onCloseRequested(
       async (event: CloseRequestedEvent) => {
-        if (isClosing) {
-          console.log("🟢 CLOSE: already handled, letting window close");
-          return;
-        }
-
+        if (isClosing) return;
         console.log("🛑 CLOSE REQUEST INTERCEPTED");
         event.preventDefault();
-
         isClosing = true;
-
         console.log("💾 CLOSE: saving session");
         await saveSessionOnly();
-
         useEditorStore.getState().saveTerminals();
-
         console.log("🚪 CLOSE: closing window for real");
         await appWindow.close();
       }
     );
 
-    // 🔄 PAGE RELOAD (Ctrl+R / Dev Refresh)
     const handleBeforeUnload = () => {
       console.log("🔄 RELOAD — saving session");
       saveSessionOnly();
@@ -140,141 +116,132 @@ export default function Workspace({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-
-
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      unlistenMenu.then((f: () => void) => f());
-      unlistenClose.then((f: () => void) => f());
+      unlistenMenu.then(f => f());
+      unlistenClose.then(f => f());
     };
   }, [appWindow]);
 
-  /* ─────────────────────────────
-     🔁 RESTORE SESSION + CURSORS
-     ───────────────────────────── */
-
-  
   useEffect(() => {
     if (isInitialBlankWindow) {
-      // 🔥 REMOVE blank=true AFTER FIRST LOAD
       const url = new URL(window.location.href);
       url.searchParams.delete("blank");
       window.history.replaceState({}, "", url.toString());
-
-      console.log("🧹 BLANK FLAG CLEARED — future reloads will restore session");
+      console.log("🧹 BLANK FLAG CLEARED");
       return;
     }
 
     (async () => {
-      console.log("🔁 REQUESTING LAST SESSION FROM RUST");
+      console.log("🔁 [RESTORE] START — requesting last session");
 
-      // Load workspaces first
       await loadWorkspaces();
 
       const session = await invoke<{
         last_workspace: string | null;
         open_files: string[];
         active_file: string | null;
-        cursors?: {
-          path: string;
-          cursor: { lineNumber: number; column: number };
-        }[];
+        cursors?: { path: string; cursor: { lineNumber: number; column: number } }[];
       }>("get_last_session");
 
-      console.log("📥 SESSION RECEIVED FROM RUST", session);
+      console.log("📥 [RESTORE] Session received:", session);
 
       if (!session) return;
 
-      const hasWorkspace =
-        !!session.last_workspace || session.open_files.length > 0;
-
-      if (isInitialBlankWindow && !hasWorkspace) {
-        console.log("🆕 BLANK WINDOW WITH NO CONTENT — skipping restore");
-        return;
-      }
-
       if (session.last_workspace) {
-        await invoke("allow_workspace_dir", {
-          path: session.last_workspace
-        });
-
+        await invoke("allow_workspace_dir", { path: session.last_workspace });
         setRepoPath(session.last_workspace);
         addRecentFolder(session.last_workspace);
 
-        // FIX: Update root_path in workspaces array for active workspace
+        // Update workspace root_path if needed
         const currentState = useEditorStore.getState();
         const activeId = currentState.focusedWorkspaceId;
-        if (activeId && session.last_workspace !== null) {  // null check here
+        if (activeId && session.last_workspace !== null) {
           const activeIndex = currentState.workspaces.findIndex(w => w.id === activeId);
           if (activeIndex !== -1 && currentState.workspaces[activeIndex].root_path !== session.last_workspace) {
             useEditorStore.setState(prev => {
               const newWorkspaces = [...prev.workspaces];
-              newWorkspaces[activeIndex] = {
-                ...newWorkspaces[activeIndex],
-                root_path: session.last_workspace as string  // Type assertion safe after null check
-              };
+              newWorkspaces[activeIndex] = { ...newWorkspaces[activeIndex], root_path: session.last_workspace as string };
               return { workspaces: newWorkspaces };
             });
           }
         }
       }
 
-for (const path of session.open_files) {
-  try {
-    let content = "";
+      for (const path of session.open_files) {
+        try {
+          console.log(`[RESTORE] Processing file: ${path}`);
 
-    // 🔥 HANDLE DIFF TABS CORRECTLY
-    if (path.startsWith("diff://")) {
-      const [, rest] = path.split("diff://");
-      const [realPath, commitId] = rest.split("@");
+          let content = "";
 
-      if (!session.last_workspace) continue;
+          if (path.startsWith("diff://")) {
+            // diff handling (unchanged + debug)
+            const [, rest] = path.split("diff://");
+            const [realPath, commitId] = rest.split("@");
+            if (!session.last_workspace) continue;
 
-      content = await invoke<string>(
-        "git_get_commit_diff_for_file",
-        {
-          repoPath: session.last_workspace,
-          commitId,
-          filePath: realPath,
+            console.log(`[RESTORE DIFF] Fetching diff for ${realPath} @ ${commitId}`);
+            const diff = await invoke<{ original: string; modified: string }>(
+              "git_get_commit_diff_for_file",
+              { repoPath: session.last_workspace, commitId, filePath: realPath }
+            );
+
+            content = diff.modified;
+            const originalContent = diff.original;
+
+            console.log(`[RESTORE DIFF] Content length: ${content.length}, starts: ${content.substring(0, 60)}...`);
+
+            setTimeout(() => {
+              const state = useEditorStore.getState();
+              const idx = state.tabs.findIndex(t => t.path === path);
+              const index = idx !== -1 ? idx : state.tabs.length;
+
+              updateTab(index, { path, content, originalContent });
+              const cursorEntry = session.cursors?.find(c => c.path === path);
+              if (cursorEntry) updateTab(index, { cursor: cursorEntry.cursor });
+
+              console.log(`[RESTORE DIFF] After updateTab - tab content preview: ${state.tabs[index]?.content?.substring(0, 60) || "missing"}...`);
+            }, 0);
+          } else {
+            // Normal file
+            console.log(`[RESTORE NORMAL] Calling read_file for ${path}`);
+            content = await invoke<string>("read_file", { path });
+
+            console.log(`[RESTORE NORMAL] read_file returned length: ${content.length}`);
+            console.log(`[RESTORE NORMAL] Content starts: ${content.substring(0, 80)}...`);
+            console.log(`[RESTORE NORMAL] Is data URI? ${content.startsWith("data:image/")}`);
+
+            setTimeout(() => {
+              const state = useEditorStore.getState();
+              const idx = state.tabs.findIndex(t => t.path === path);
+              const index = idx !== -1 ? idx : state.tabs.length;
+
+              updateTab(index, { path, content });
+              const cursorEntry = session.cursors?.find(c => c.path === path);
+              if (cursorEntry) updateTab(index, { cursor: cursorEntry.cursor });
+
+              console.log(`[RESTORE NORMAL] After updateTab - tab content preview: ${state.tabs[index]?.content?.substring(0, 80) || "missing"}...`);
+            }, 0);
+          }
+        } catch (err) {
+          console.error("[RESTORE ERROR] Failed file:", path, err);
         }
-      );
-    } else {
-      // 🔥 NORMAL FILE
-      content = await invoke<string>("read_file", { path });
-    }
+      }
 
-    const state = useEditorStore.getState();
-    const existingIndex = state.tabs.findIndex(t => t.path === path);
-    const index =
-      existingIndex !== -1 ? existingIndex : state.tabs.length;
-
-    updateTab(index, { path, content });
-
-    const cursorEntry = session.cursors?.find(c => c.path === path);
-    if (cursorEntry) {
-      updateTab(index, { cursor: cursorEntry.cursor });
-    }
-
-  } catch (err) {
-    console.error("❌ FAILED TO RESTORE FILE", path, err);
-  }
-}
-
-      // Always select the first tab on refresh
       const state = useEditorStore.getState();
       if (state.tabs.length > 0) {
-        console.log("🔥 Refresh: forcing first tab as active:", state.tabs[0].path);
+        console.log("🔥 [RESTORE] Forcing first tab active:", state.tabs[0].path);
         setActiveTab(0);
       }
 
-      console.log("✅ FINAL STATE AFTER RESTORE", useEditorStore.getState());
+      console.log("✅ [RESTORE] FINAL STATE:", useEditorStore.getState());
     })();
   }, [setRepoPath, addRecentFolder, updateTab, setActiveTab, loadWorkspaces]);
 
   return <Canvas
-            onSwitchAccount={onSwitchAccount}
-            onLogout={onLogout}
-            pendingApprovalCount={pendingApprovalCount}
-            refreshPendingApprovals={refreshPendingApprovals}
-         />;
+    onSwitchAccount={onSwitchAccount}
+    onLogout={onLogout}
+    pendingApprovalCount={pendingApprovalCount}
+    refreshPendingApprovals={refreshPendingApprovals}
+  />;
 }

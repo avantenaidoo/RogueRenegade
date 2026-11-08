@@ -12,6 +12,8 @@ interface FileTab {
     lineNumber: number;
     column: number;
   };
+  originalContent?: string;
+  isDiff?: boolean; 
 }
 
 /* ───────────────────────────────────────────── */
@@ -243,75 +245,72 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeTabIndexByWorkspace: {},
 
 
-  addTab: (path, content) => {
-    const wsId = get().focusedWorkspaceId;
-    if (!wsId) return;
+addTab: (path: string, content: string, extra: Partial<FileTab> = {}) => {
+  const wsId = get().focusedWorkspaceId;
+  if (!wsId) return;
 
-    const tabs = get().tabs;
-    const existingIndex = tabs.findIndex(t => t.path === path);
+  const tabs = get().tabs;
+  const existingIndex = tabs.findIndex(t => t.path === path);
 
-    if (existingIndex >= 0) {
-      set(state => ({
-        activeTabIndex: existingIndex,
-        activeTabIndexByWorkspace: {
-          ...state.activeTabIndexByWorkspace,
-          [wsId]: existingIndex,
-        },
-      }));
-      return;
-    }
-
-    set(state => {
-      const nextTabs = [
-        ...tabs,
-        {
-          path,
-          content,
-          savedContent: normalize(content),
-          branch: null,
-          dirty: false,
-        },
-      ];
-
-      const nextIndex = nextTabs.length - 1;
-
-      const nextTabsByWs = {
-        ...state.tabsByWorkspace,
-        [wsId]: nextTabs,
-      };
-
-      const nextActiveByWs = {
+  if (existingIndex >= 0) {
+    set(state => ({
+      activeTabIndex: existingIndex,
+      activeTabIndexByWorkspace: {
         ...state.activeTabIndexByWorkspace,
-        [wsId]: nextIndex,
-      };
+        [wsId]: existingIndex,
+      },
+    }));
+    return;
+  }
 
-      // 🔥 PERSIST
-      localStorage.setItem(
-        OPEN_TABS_BY_WORKSPACE_KEY,
-        JSON.stringify(
-          Object.fromEntries(
-            Object.entries(nextTabsByWs).map(([id, tabs]) => [
-              id,
-              tabs.map(t => t.path),
-            ])
-          )
-        )
-      );
+  const newTab: FileTab = {
+    path,
+    content,
+    savedContent: normalize(content),
+    branch: null,
+    dirty: extra.dirty ?? false,
+    originalContent: extra.originalContent ?? undefined,
+    isDiff: extra.isDiff ?? path.startsWith("diff://"),
+    cursor: extra.cursor ?? undefined,
+  };
 
-      localStorage.setItem(
-        ACTIVE_TAB_BY_WORKSPACE_KEY,
-        JSON.stringify(nextActiveByWs)
-      );
+  const nextTabs = [...tabs, newTab];
+  const nextIndex = nextTabs.length - 1;
 
-      return {
-        tabs: nextTabs,
-        activeTabIndex: nextIndex,
-        tabsByWorkspace: nextTabsByWs,
-        activeTabIndexByWorkspace: nextActiveByWs,
-      };
+  const nextTabsByWs = {
+    ...get().tabsByWorkspace,
+    [wsId]: nextTabs,
+  };
 
-    });
-  },
+  const nextActiveByWs = {
+    ...get().activeTabIndexByWorkspace,
+    [wsId]: nextIndex,
+  };
+
+  localStorage.setItem(
+    OPEN_TABS_BY_WORKSPACE_KEY,
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(nextTabsByWs).map(([id, tabs]) => [
+          id,
+          tabs.map(t => t.path),
+        ])
+      )
+    )
+  );
+
+  localStorage.setItem(
+    ACTIVE_TAB_BY_WORKSPACE_KEY,
+    JSON.stringify(nextActiveByWs)
+  );
+
+  set({
+    tabs: nextTabs,
+    activeTabIndex: nextIndex,
+    tabsByWorkspace: nextTabsByWs,
+    activeTabIndexByWorkspace: nextActiveByWs,
+  });
+},
 
 
   updateTab: (index, updates) =>
@@ -400,55 +399,60 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
 
-  closeTab: index =>
-    set(state => {
-      const wsId = state.focusedWorkspaceId;
-      if (!wsId) return state;
+closeTab: (index: number) =>
+  set(state => {
+    const wsId = state.focusedWorkspaceId;
+    if (!wsId) return state;
 
-      const tabs = [...state.tabs];
-      tabs.splice(index, 1);
+    const currentTabs = state.tabsByWorkspace[wsId] ?? [];
+    if (index < 0 || index >= currentTabs.length) return state;
 
-      let newIndex = state.activeTabIndex;
-      if (index < newIndex) newIndex -= 1;
-      if (newIndex >= tabs.length) newIndex = tabs.length - 1;
+    // Remove the tab
+    const nextTabs = currentTabs.filter((_, i) => i !== index);
 
-      const finalIndex = Math.max(newIndex, 0);
+    // Calculate new active index safely
+    let newIndex = state.activeTabIndexByWorkspace[wsId] ?? 0;
+    if (index < newIndex) newIndex -= 1;
+    newIndex = Math.max(0, Math.min(newIndex, nextTabs.length - 1));
 
-      const nextTabsByWs = {
-        ...state.tabsByWorkspace,
-        [wsId]: tabs,
-      };
+    // Update only workspace-scoped state — avoid touching global tabs/activeTabIndex
+    const nextTabsByWs = {
+      ...state.tabsByWorkspace,
+      [wsId]: nextTabs,
+    };
 
-      const nextActiveByWs = {
-        ...state.activeTabIndexByWorkspace,
-        [wsId]: finalIndex,
-      };
+    const nextActiveByWs = {
+      ...state.activeTabIndexByWorkspace,
+      [wsId]: newIndex,
+    };
 
-      localStorage.setItem(
-        OPEN_TABS_BY_WORKSPACE_KEY,
-        JSON.stringify(
-          Object.fromEntries(
-            Object.entries(nextTabsByWs).map(([id, tabs]) => [
-              id,
-              tabs.map(t => t.path),
-            ])
-          )
+    // Save to localStorage (only workspace-specific)
+    localStorage.setItem(
+      OPEN_TABS_BY_WORKSPACE_KEY,
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(nextTabsByWs).map(([id, tabs]) => [
+            id,
+            tabs.map(t => t.path),
+          ])
         )
-      );
+      )
+    );
 
-      localStorage.setItem(
-        ACTIVE_TAB_BY_WORKSPACE_KEY,
-        JSON.stringify(nextActiveByWs)
-      );
+    localStorage.setItem(
+      ACTIVE_TAB_BY_WORKSPACE_KEY,
+      JSON.stringify(nextActiveByWs)
+    );
 
-      return {
-        tabs,
-        activeTabIndex: finalIndex,
-        tabsByWorkspace: nextTabsByWs,
-        activeTabIndexByWorkspace: nextActiveByWs,
-      };
-
-    }),
+    return {
+      // Only update workspace-specific state — prevents full re-render cascade
+      tabsByWorkspace: nextTabsByWs,
+      activeTabIndexByWorkspace: nextActiveByWs,
+      // Keep legacy tabs/activeTabIndex in sync (for components still using them)
+      tabs: nextTabs,
+      activeTabIndex: newIndex,
+    };
+  }),
 
 
   markDirty: path =>

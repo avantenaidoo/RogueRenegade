@@ -6,7 +6,7 @@ import path from "path";
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
@@ -18,12 +18,22 @@ export default defineConfig(async () => ({
     },
   },
 
+  // FORCE Vite to rebuild monaco-editor deps from scratch every time (kills old 0.55.1 cache)
+  optimizeDeps: {
+    force: true,                    // This is the key line - re-optimizes ALL deps on every server start
+    include: ['monaco-editor', '@monaco-editor/react'],  // Explicitly target monaco
+  },
+
+  // Prevent externalizing monaco during build
+  build: {
+    rollupOptions: {
+      external: [],
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
 
-  // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
     strictPort: true,
@@ -42,4 +52,4 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+});

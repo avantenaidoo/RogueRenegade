@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
+import { readDir } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core"; // ← ADD THIS IMPORT
 import { useEditorStore } from "../store";
 
 type FileNode = {
@@ -57,7 +58,7 @@ export default function FileExplorer() {
     reloadTree();
   }, [repoPath]);
 
-  // 🔥🔥🔥 LISTEN FOR SAVE EVENTS 🔥🔥🔥
+  // Listen for save events
   useEffect(() => {
     const unlisten = listen("fs-refresh", () => {
       console.log("🔄 FS refresh received");
@@ -93,8 +94,18 @@ export default function FileExplorer() {
       return;
     }
 
-    const content = await readTextFile(node.path);
-    addTab(node.path, content);
+    try {
+      console.log(`[OPEN] Reading file via Rust: ${node.path}`);
+      const content = await invoke<string>("read_file", { path: node.path });
+
+      console.log(`[OPEN] Rust read_file length: ${content.length}`);
+      console.log(`[OPEN] Content starts: ${content.substring(0, 150)}...`);
+      console.log(`[OPEN] Is data URI? ${content.startsWith("data:image/")}`);
+
+      addTab(node.path, content);
+    } catch (err) {
+      console.error(`[OPEN ERROR] Failed to open ${node.path}:`, err);
+    }
   }
 
   function renderNodes(nodes: FileNode[], depth = 0) {
