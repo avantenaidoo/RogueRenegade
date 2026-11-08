@@ -347,12 +347,18 @@ addTab: (path: string, content: string, extra: Partial<FileTab> = {}) => {
             ? normalize(updates.savedContent)
             : tab.savedContent;
 
+        const contentChanged =
+          updates.content !== undefined ||
+          updates.savedContent !== undefined;
+
         tabs[index] = {
           ...tab,
           ...updates,
           content: nextContent,
           savedContent: nextSaved,
-          dirty: nextContent !== nextSaved, // 🔥 UNDO FIX
+          dirty: contentChanged
+            ? nextContent !== nextSaved
+            : tab.dirty,
         };
       }
 

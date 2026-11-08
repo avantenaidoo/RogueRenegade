@@ -276,15 +276,6 @@ export default function Editor({ value, onChange, theme, path }: EditorProps) {
             onMount={handleEditorMount}
             onChange={(val) => {
               if (val === undefined) return;
-              const index = store.activeTabIndex;
-              const tab = store.tabs[index];
-              const normalizedNext = normalize(val);
-              const normalizedSaved = normalize(tab.savedContent);
-
-              store.updateTab(index, {
-                content: normalizedNext,
-                dirty: normalizedNext !== normalizedSaved,
-              });
 
               workflowOnChange(path, val);
               onChange(val);
