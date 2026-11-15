@@ -1,0 +1,53 @@
+
+name: Rust CI
+
+on:
+  push:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-build-and-test:
+    name: Rust Build and Tests
+    runs-on: ubuntu-22.04
+
+    defaults:
+      run:
+        working-directory: src-tauri
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust project
+        run: cargo build --locked
+
+      - name: Run Rust tests
+        run: cargo test --locked
