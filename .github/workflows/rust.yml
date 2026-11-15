@@ -17,8 +17,16 @@ permissions:
 
 jobs:
   rust-build-and-test:
-    name: Rust Build and Tests
-    runs-on: ubuntu-22.04
+    name: Rust Build and Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-latest
+          - macos-latest
 
     defaults:
       run:
@@ -29,6 +37,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
