@@ -1,3 +1,4 @@
+
 # Logs
 logs
 *.log
@@ -7,16 +8,35 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
+
+# Local environment files
 *.local
+.env
+.env.*
+!.env.example
+
+# Vite cache
+.vite/
+
+# Test coverage
+coverage/
+
+# TypeScript build information
+*.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Operating system files
 .DS_Store
+
+# Visual Studio files
 *.suo
 *.ntvs*
 *.njsproj
