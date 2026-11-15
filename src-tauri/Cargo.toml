@@ -1,9 +1,10 @@
 [package]
 name = "rogue-renegade-ide"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A desktop IDE built with Tauri, React, and Rust"
+authors = ["Avante Naidoo <https://github.com/avantenaidoo>"]
 edition = "2021"
+repository = "https://github.com/avantenaidoo/RogueRenegade"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
