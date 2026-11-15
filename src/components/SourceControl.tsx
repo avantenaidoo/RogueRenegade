@@ -141,6 +141,14 @@ const SourceControl: React.FC = () => {
     const existingIndex = tabs.findIndex((t) => t.path === syntheticPath);
 
     if (existingIndex !== -1) {
+      useEditorStore.getState().updateTab(existingIndex, {
+        content: diff.modified,
+        savedContent: diff.modified,
+        originalContent: diff.original,
+        dirty: false,
+        isDiff: true,
+      });
+
       setActiveTab(existingIndex);
       return;
     }
@@ -162,6 +170,26 @@ const SourceControl: React.FC = () => {
         setActiveTab(newIndex);
       }
     }, 0); // 0 ms = next tick, enough to let first render settle
+  };
+
+
+  // Open a diff for a modified, uncommitted or deleted file
+  const openWorkingDiff = async (filePath: string) => {
+    if (!repoPath) return;
+
+    try {
+      const diff = await invoke<{
+        original: string;
+        modified: string;
+      }>("git_get_working_diff_for_file", {
+        repoPath,
+        filePath,
+      });
+
+      openDiffTab(filePath, "working-tree", diff);
+    } catch (err) {
+      console.error("Failed loading working tree diff:", err);
+    }
   };
 
   // ───────────── RESIZE ─────────────
@@ -218,7 +246,9 @@ const SourceControl: React.FC = () => {
             files.map((file) => (
               <div
                 key={file}
+                onClick={() => openWorkingDiff(file)}
                 className="px-3 py-1 hover:bg-neutral-500 cursor-pointer"
+                title={`Open diff: ${file}`}
               >
                 {file.split(/[\\/]/).pop()}
               </div>

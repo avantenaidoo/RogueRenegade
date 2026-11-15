@@ -366,3 +366,61 @@ pub fn git_get_commit_diff_for_file(
 
     Ok(CommitFileVersions { original, modified })
 }
+
+
+/* ─────────────────────────────
+   GET WORKING TREE DIFF FOR A FILE
+   ───────────────────────────── */
+#[command]
+pub fn git_get_working_diff_for_file(
+    repo_path: String,
+    file_path: String,
+) -> Result<CommitFileVersions, String> {
+    let repo = Repository::open(&repo_path)
+        .map_err(|e| format!("Failed to open repo: {}", e))?;
+
+    // Get the version from the latest commit (HEAD).
+    // An empty original means this is a new, untracked file
+    // or the repository has no commits yet.
+    let original = if let Ok(head) = repo.head() {
+        let tree = head
+            .peel_to_tree()
+            .map_err(|e| format!("Failed to get HEAD tree: {}", e))?;
+
+        match tree.get_path(std::path::Path::new(&file_path)) {
+            Ok(entry) => {
+                let blob = repo
+                    .find_blob(entry.id())
+                    .map_err(|e| format!("Failed to read committed file: {}", e))?;
+
+                String::from_utf8_lossy(blob.content()).to_string()
+            }
+            Err(_) => String::new(),
+        }
+    } else {
+        String::new()
+    };
+
+    // Get the current version from disk.
+    // An empty modified version means the file was deleted.
+    let workdir = repo
+        .workdir()
+        .ok_or("Repository has no working directory")?;
+
+    let full_path = workdir.join(&file_path);
+
+    let modified = match std::fs::read(&full_path) {
+        Ok(bytes) => String::from_utf8_lossy(&bytes).to_string(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            String::new()
+        }
+        Err(error) => {
+            return Err(format!("Failed to read working file: {}", error));
+        }
+    };
+
+    Ok(CommitFileVersions {
+        original,
+        modified,
+    })
+}
