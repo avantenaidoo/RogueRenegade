@@ -188,7 +188,11 @@ const SourceControl: React.FC = () => {
 
       openDiffTab(filePath, "working-tree", diff);
     } catch (err) {
-      console.error("Failed loading working tree diff:", err);
+      // Enhanced error message for user visibility
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`Failed to load diff for "${filePath}":`, errorMessage);
+      // TODO: Consider adding user-facing notification (e.g., toast notification)
+      // to inform the user that the diff failed to load
     }
   };
 
