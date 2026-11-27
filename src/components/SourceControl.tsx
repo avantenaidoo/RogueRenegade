@@ -34,6 +34,7 @@ const SourceControl: React.FC = () => {
   const [commitFiles, setCommitFiles] = useState<string[]>([]);
 
   const resizing = useRef(false);
+  const latestRequestId = useRef<number>(0);
   const workspace = workspaces.find((w) => w.id === focusedWorkspaceId);
 
   // ───────────── DETECT REPO ROOT ─────────────
@@ -177,6 +178,9 @@ const SourceControl: React.FC = () => {
   const openWorkingDiff = async (filePath: string) => {
     if (!repoPath) return;
 
+    // Increment request counter to prevent race condition with async requests
+    const currentRequestId = ++latestRequestId.current;
+
     try {
       const diff = await invoke<{
         original: string;
@@ -186,7 +190,10 @@ const SourceControl: React.FC = () => {
         filePath,
       });
 
-      openDiffTab(filePath, "working-tree", diff);
+      // Only update the tab if this is still the latest request
+      if (currentRequestId === latestRequestId.current) {
+        openDiffTab(filePath, "working-tree", diff);
+      }
     } catch (err) {
       console.error("Failed loading working tree diff:", err);
     }
