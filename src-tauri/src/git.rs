@@ -369,6 +369,27 @@ pub fn git_get_commit_diff_for_file(
 
 
 /* ─────────────────────────────
+   VALIDATE FILE PATH
+   ───────────────────────────── */
+fn validate_file_path(repo_workdir: &std::path::Path, file_path: &str) -> Result<std::path::PathBuf, String> {
+    // Canonicalize the repo directory
+    let repo_canonical = repo_workdir.canonicalize()
+        .map_err(|e| format!("Failed to canonicalize repo path: {}", e))?;
+
+    // Build the full path and canonicalize it
+    let full_path = repo_canonical.join(file_path);
+    let full_canonical = full_path.canonicalize()
+        .map_err(|e| format!("Invalid file path: {}", e))?;
+
+    // Verify the path is within the repository
+    if !full_canonical.starts_with(&repo_canonical) {
+        return Err("File path escapes repository bounds".to_string());
+    }
+
+    Ok(full_canonical)
+}
+
+/* ─────────────────────────────
    GET WORKING TREE DIFF FOR A FILE
    ───────────────────────────── */
 #[command]
@@ -407,6 +428,8 @@ pub fn git_get_working_diff_for_file(
         .workdir()
         .ok_or("Repository has no working directory")?;
 
+    // Validate the file path to prevent path traversal attacks
+    let _validated_path = validate_file_path(workdir, &file_path)?;
     let full_path = workdir.join(&file_path);
 
     let modified = match std::fs::read(&full_path) {
